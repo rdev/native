@@ -2453,7 +2453,13 @@ int native_sdk_appkit_unregister_font(uint64_t font_id, uint64_t token) {
 static NSFont *NativeSdkBuiltInFontForFontId(unsigned long long value, CGFloat size) {
     // ProUI's macOS reference uses SF, not the SDK's preferred Geist face.
     if (value <= 6) {
-        if (value == 2) return [NSFont monospacedDigitSystemFontOfSize:size weight:NSFontWeightRegular];
+        // The mono id must resolve to a real monospaced FACE (SF Mono), the
+        // way `.font(.system(design: .monospaced))` does in the SwiftUI
+        // reference. `monospacedDigitSystemFont` is the proportional system
+        // face with tabular figures — its letterforms and advances are the
+        // sans ones, so timecode and other readouts set in it are visibly
+        // wider and rounder than the reference.
+        if (value == 2) return [NSFont monospacedSystemFontOfSize:size weight:NSFontWeightRegular];
         NSFontWeight weight = value == 3 ? NSFontWeightMedium : (value == 4 || value == 6) ? NSFontWeightSemibold : NSFontWeightRegular;
         NSFont *system = [NSFont systemFontOfSize:size weight:weight];
         return (value == 5 || value == 6) ? NativeSdkItalicSansFont(system) : system;
