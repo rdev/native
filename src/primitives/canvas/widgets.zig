@@ -1733,9 +1733,9 @@ fn mergeLayoutDefaults(explicit: WidgetLayoutStyle, defaults: WidgetLayoutStyle)
 
 test "Widget keeps the retained hot-path footprint after textarea policy flags" {
     // One layout tree holds thousands of Widgets by value. On the 64-bit
-    // targets that run the renderer, 776 bytes is the reviewed footprint;
-    // packing engine-only markers keeps the new textarea policy within it.
+    // targets that run the renderer, 816 bytes is the reviewed footprint
+    // after adding the optional painter pointer and its eight-float payload.
     if (@sizeOf(usize) == 8) {
-        try std.testing.expectEqual(@as(usize, 776), @sizeOf(Widget));
+        try std.testing.expectEqual(@as(usize, 816), @sizeOf(Widget));
     }
 }
