@@ -252,6 +252,11 @@ pub const WidgetCursor = enum {
     resize_horizontal,
 };
 
+pub const SliderOrientation = enum {
+    horizontal,
+    vertical,
+};
+
 pub const WidgetState = struct {
     hovered: bool = false,
     pressed: bool = false,
@@ -900,8 +905,20 @@ pub const WidgetGroupSegment = enum {
     last,
 };
 
+/// Slider metadata is stored in fields that are already zero-cost on
+/// unrelated widgets: value_x belongs to scroll views, resize_origin to
+/// split widgets, code_content_width to code text, and stream_size to media
+/// surfaces. The slider kind is the discriminator, so these fields never
+/// alter another widget's equality, layout, or serialization semantics.
+const slider_metadata_vertical_bit: u32 = 1;
+const slider_metadata_reversed_bit: u32 = 2;
+const slider_metadata_reset_bit: u32 = 4;
+
 pub const Widget = struct {
     id: ObjectId = 0,
+    /// Kit-authored vector chrome. Children, input, and semantics remain native.
+    paint: ?*const fn (*canvas.Builder, Widget, token_model.DesignTokens) canvas.Error!void = null,
+    paint_data: [8]f32 = @splat(0),
     kind: WidgetKind,
     frame: geometry.RectF = .{},
     opacity: f32 = 1,
@@ -1145,6 +1162,73 @@ pub const Widget = struct {
     /// serialization, or equality decisions.
     group_segment: WidgetGroupSegment = .none,
     children: []const Widget = &.{},
+
+    pub fn sliderHasSourceMetadata(self: Widget) bool {
+        return self.kind == .slider and self.stream_size != null;
+    }
+
+    pub fn sliderMin(self: Widget) f32 {
+        if (!self.sliderHasSourceMetadata()) return 0;
+        return if (std.math.isFinite(self.value_x)) self.value_x else 0;
+    }
+
+    pub fn sliderMax(self: Widget) f32 {
+        if (!self.sliderHasSourceMetadata()) return 1;
+        const minimum = self.sliderMin();
+        const maximum = if (std.math.isFinite(self.resize_origin)) self.resize_origin else minimum;
+        return @max(minimum, maximum);
+    }
+
+    pub fn sliderStep(self: Widget) f32 {
+        if (!self.sliderHasSourceMetadata()) return 0;
+        return if (std.math.isFinite(self.code_content_width) and self.code_content_width > 0) self.code_content_width else 0;
+    }
+
+    pub fn sliderOrientation(self: Widget) SliderOrientation {
+        if (self.stream_size) |encoded| {
+            const flags: u32 = @intFromFloat(encoded.height);
+            return if ((flags & slider_metadata_vertical_bit) != 0) .vertical else .horizontal;
+        }
+        return .horizontal;
+    }
+
+    pub fn sliderReversed(self: Widget) bool {
+        if (self.stream_size) |encoded| {
+            const flags: u32 = @intFromFloat(encoded.height);
+            return (flags & slider_metadata_reversed_bit) != 0;
+        }
+        return false;
+    }
+
+    pub fn sliderResetValue(self: Widget) ?f32 {
+        if (self.stream_size) |encoded| {
+            const flags: u32 = @intFromFloat(encoded.height);
+            if ((flags & slider_metadata_reset_bit) != 0) return encoded.width;
+        }
+        return null;
+    }
+
+    pub fn setSliderMetadata(
+        self: *Widget,
+        minimum: f32,
+        maximum: f32,
+        step: f32,
+        orientation: SliderOrientation,
+        reversed: bool,
+        reset_value: ?f32,
+    ) void {
+        var flags: u32 = 0;
+        if (orientation == .vertical) flags |= slider_metadata_vertical_bit;
+        if (reversed) flags |= slider_metadata_reversed_bit;
+        if (reset_value != null) flags |= slider_metadata_reset_bit;
+        self.value_x = minimum;
+        self.resize_origin = maximum;
+        self.code_content_width = step;
+        self.stream_size = .{
+            .width = reset_value orelse 0,
+            .height = @floatFromInt(flags),
+        };
+    }
 
     pub fn codeLineNumberDigits(self: Widget) u8 {
         return self.code_line_number_digits & 0x7f;

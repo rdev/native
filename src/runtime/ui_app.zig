@@ -669,6 +669,9 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
             /// can never steal typing — a fallback that yields to every
             /// consuming widget can carry them safely.
             on_key: ?*const fn (keyboard: canvas.WidgetKeyboardEvent) ?MsgT = null,
+            /// Optional kit-owned controls, dispatched only when the callback claims an event.
+            on_widget_pointer: ?*const fn (model: *const ModelT, event: core.CanvasWidgetPointerEvent) ?MsgT = null,
+            on_widget_keyboard: ?*const fn (model: *const ModelT, event: core.CanvasWidgetKeyboardEvent) ?MsgT = null,
             /// Deliver `.key_up` phases through `on_key` too. OFF by
             /// default: most key consumers act on presses alone, and a
             /// release arriving unexpectedly would double-fire a
@@ -5028,6 +5031,21 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
         /// a fired hold suppresses the release's press (one gesture, one
         /// Msg), and any release/cancel disarms it.
         fn handlePointer(self: *Self, runtime: *Runtime, pointer_event: core.CanvasWidgetPointerEvent) anyerror!void {
+            if (pointer_event.blurred_id != 0) {
+                if (self.treeForViewLabel(pointer_event.view_label)) |blur_tree| {
+                    if (blur_tree.msgFor(pointer_event.blurred_id, .blur)) |msg| {
+                        try self.dispatch(runtime, pointer_event.window_id, msg);
+                    }
+                }
+            }
+            if (self.options.on_widget_pointer) |callback| {
+                if (callback(&self.model, pointer_event)) |msg| {
+                    try self.dispatch(runtime, pointer_event.window_id, msg);
+                    return;
+                }
+            }
+            // Blur may have rebuilt the controlled tree (an editor commonly
+            // becomes a readout), so resolve the click against the fresh tree.
             const tree = self.treeForViewLabel(pointer_event.view_label) orelse return;
             const terminal_selected = try self.handleTerminalPointer(runtime, pointer_event);
             switch (pointer_event.pointer.phase) {
@@ -5077,6 +5095,14 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
             // through the target's `.context_menu` handler entry and
             // closes the surface.
             if (pointer_event.pointer.phase == .up) {
+                if (tree.findWidget(target.id)) |widget| {
+                    if (widget.kind == .slider) {
+                        if (tree.msgForCommit(target.id)) |msg| {
+                            try self.dispatch(runtime, pointer_event.window_id, msg);
+                            return;
+                        }
+                    }
+                }
                 if (try self.dispatchContextMenuFallbackItem(runtime, tree, pointer_event.window_id, target.id)) return;
                 // House video chrome is runtime-consumed: a release on
                 // the transport's play/pause control drives the video
@@ -5841,6 +5867,12 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
         }
 
         fn handleKeyboard(self: *Self, runtime: *Runtime, keyboard_event: core.CanvasWidgetKeyboardEvent) anyerror!void {
+            if (self.options.on_widget_keyboard) |callback| {
+                if (callback(&self.model, keyboard_event)) |msg| {
+                    try self.dispatch(runtime, keyboard_event.window_id, msg);
+                    return;
+                }
+            }
             const tree = self.treeForViewLabel(keyboard_event.view_label) orelse return;
             // Key precedence, top to bottom — the focused widget always
             // outranks the app-level fallback:
@@ -6139,6 +6171,20 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
             if (drag_event.drag.phase == .change) self.disarmHold(runtime);
             const tree = self.treeForViewLabel(drag_event.view_label);
             const live_template = if (tree) |value| value.msgFor(source.id, .drag) else null;
+            // A terminal native drag release is the slider commit edge.
+            // Dispatch it before the optional drag template so a regular
+            // static Msg works without a payload-shaped on-drag contract.
+            if (drag_event.drag.phase == .end) {
+                if (tree) |value| {
+                    if (value.findWidget(source.id)) |widget| {
+                        if (widget.kind == .slider) {
+                            if (value.msgForCommit(source.id)) |msg| {
+                                try self.dispatch(runtime, drag_event.window_id, msg);
+                            }
+                        }
+                    }
+                }
+            }
             const layout: ?canvas.WidgetLayoutTree = runtime.canvasWidgetLayout(drag_event.window_id, drag_event.view_label) catch null;
             const live_view_size: ?geometry.SizeF = if (layout) |value| if (canvas.widgetLayoutRootBounds(value)) |root_value| blk: {
                 const root = root_value.normalized();
