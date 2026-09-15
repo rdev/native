@@ -342,6 +342,19 @@ fn terminalBindingClean(previous: widget_model.TerminalBinding, next: widget_mod
     return previous.grid == null and next.grid == null;
 }
 
+fn sliderMetadataEqual(previous: Widget, next: Widget) bool {
+    if (previous.kind != .slider or next.kind != .slider) return true;
+    const previous_has_metadata = previous.sliderHasSourceMetadata();
+    if (previous_has_metadata != next.sliderHasSourceMetadata()) return false;
+    if (!previous_has_metadata) return true;
+    return previous.sliderMin() == next.sliderMin() and
+        previous.sliderMax() == next.sliderMax() and
+        previous.sliderStep() == next.sliderStep() and
+        previous.sliderOrientation() == next.sliderOrientation() and
+        previous.sliderReversed() == next.sliderReversed() and
+        previous.sliderResetValue() == next.sliderResetValue();
+}
+
 fn widgetChange(
     previous: WidgetLayoutNode,
     next: WidgetLayoutNode,
@@ -374,6 +387,9 @@ fn widgetChange(
         !std.mem.eql(u8, previous.widget.icon, next.widget.icon) or
         previous.widget.value != next.widget.value or
         previous.widget.value_x != next.widget.value_x or
+        previous.widget.paint != next.widget.paint or
+        !std.mem.eql(f32, &previous.widget.paint_data, &next.widget.paint_data) or
+        !sliderMetadataEqual(previous.widget, next.widget) or
         previous.widget.scroll_axes != next.widget.scroll_axes or
         previous.widget.image_id != next.widget.image_id or
         !optionalRectsEqual(previous.widget.image_src, next.widget.image_src) or
