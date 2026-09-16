@@ -704,6 +704,12 @@ pub fn Ui(comptime Msg: type) type {
             /// status bars, and surface titles consume it. Controls that
             /// own their label placement (buttons, badges) ignore it.
             text_alignment: canvas.TextAlign = .start,
+            /// Authored line ADVANCE for a wrapped paragraph, in points.
+            /// 0 (the default) keeps the face's natural line height. Set it
+            /// when a reference specifies the block's rhythm rather than the
+            /// font's (SwiftUI's `lineSpacing` is this, minus the natural
+            /// height).
+            line_height: f32 = 0,
             /// Fixed column count for `grid` containers. 0 (the default)
             /// keeps the derived near-square column count.
             columns: usize = 0,
@@ -3971,6 +3977,7 @@ pub fn Ui(comptime Msg: type) type {
                 .icon_placement = options.icon_placement,
                 .text_alignment = options.text_alignment,
                 .text_overflow = options.overflow,
+                .text_line_height = options.line_height,
                 .autofocus = options.autofocus,
                 .submit_on_enter = options.submit_on_enter,
                 .image_id = options.image,

@@ -966,6 +966,11 @@ pub const Widget = struct {
     /// tooling and write-back can round-trip it. Span paragraphs
     /// (`spans`) wrap by design and ignore it.
     text_no_wrap: bool = false,
+    /// Authored line ADVANCE for a span paragraph, in points. 0 keeps the
+    /// face's natural line height. This is the channel a design system needs
+    /// to reproduce a reference's text block rhythm (SwiftUI spells the same
+    /// thing `lineSpacing`, relative to the natural height).
+    text_line_height: f32 = 0,
     /// Renderer-owned logical-line gutter for a syntax-code paragraph.
     /// Zero keeps an ordinary paragraph; a positive value is the decimal
     /// digit width of the largest marker. The gutter is decoration, not
