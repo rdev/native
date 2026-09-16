@@ -4620,9 +4620,15 @@ static BOOL NativeSdkCompositeBlurWriteRegion(NSDictionary *command, CGFloat sca
     const uint8_t flatPixel[4] = {0, 0, 0, 0};
     [flatTexture replaceRegion:MTLRegionMake2D(0, 0, 1, 1) mipmapLevel:0 withBytes:flatPixel bytesPerRow:4];
 
+    /* Composite quads are rasterized at backing scale and drawn 1:1 into
+     * device pixels — the same contract the presenter states for the canvas
+     * texture, so they take the same sampler. A linear filter buys nothing
+     * on a 1:1 blit and costs sharpness the moment a quad's origin or the
+     * fragment's texel math drifts by a fraction of a pixel, which softens
+     * every composited command including glyph runs. */
     MTLSamplerDescriptor *samplerDescriptor = [[MTLSamplerDescriptor alloc] init];
-    samplerDescriptor.minFilter = MTLSamplerMinMagFilterLinear;
-    samplerDescriptor.magFilter = MTLSamplerMinMagFilterLinear;
+    samplerDescriptor.minFilter = MTLSamplerMinMagFilterNearest;
+    samplerDescriptor.magFilter = MTLSamplerMinMagFilterNearest;
     samplerDescriptor.mipFilter = MTLSamplerMipFilterNotMipmapped;
     samplerDescriptor.sAddressMode = MTLSamplerAddressModeClampToEdge;
     samplerDescriptor.tAddressMode = MTLSamplerAddressModeClampToEdge;
