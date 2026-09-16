@@ -959,6 +959,11 @@ pub const Widget = struct {
     /// tooling and write-back can round-trip it. Span paragraphs
     /// (`spans`) wrap by design and ignore it.
     text_no_wrap: bool = false,
+    /// Authored line ADVANCE for a span paragraph, in points. 0 keeps the
+    /// face's natural line height. This is the channel a design system needs
+    /// to reproduce a reference's text block rhythm (SwiftUI spells the same
+    /// thing `lineSpacing`, relative to the natural height).
+    text_line_height: f32 = 0,
     /// Renderer-owned logical-line gutter for a syntax-code paragraph.
     /// Zero keeps an ordinary paragraph; a positive value is the decimal
     /// digit width of the largest marker. The gutter is decoration, not
@@ -1733,9 +1738,10 @@ fn mergeLayoutDefaults(explicit: WidgetLayoutStyle, defaults: WidgetLayoutStyle)
 
 test "Widget keeps the retained hot-path footprint after textarea policy flags" {
     // One layout tree holds thousands of Widgets by value. On the 64-bit
-    // targets that run the renderer, 816 bytes is the reviewed footprint
-    // after adding the optional painter pointer and its eight-float payload.
+    // targets that run the renderer, 824 bytes is the reviewed footprint
+    // after adding the optional painter pointer and its eight-float payload,
+    // plus the authored paragraph line advance (`text_line_height`).
     if (@sizeOf(usize) == 8) {
-        try std.testing.expectEqual(@as(usize, 816), @sizeOf(Widget));
+        try std.testing.expectEqual(@as(usize, 824), @sizeOf(Widget));
     }
 }
