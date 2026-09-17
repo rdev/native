@@ -107,6 +107,7 @@ pub fn widgetTextSpanLayoutOptions(widget: Widget, tokens: DesignTokens, max_wid
         .max_width = max_width,
         .wrap = if (widget.text_no_wrap) .none else .word,
         .line_height = widget.text_line_height,
+        .tracking = widget.text_tracking,
         .alignment = widget.text_alignment,
         .typography = tokens.typography,
         .measure = tokens.text_measure,
