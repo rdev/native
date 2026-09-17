@@ -37,7 +37,7 @@ The current implementation stores slider metadata in fields unused by slider wid
 - Derives retained canvas and window frame timers from the active screen refresh rate and assigns a quarter-frame timer tolerance, allowing 120 Hz presentation on ProMotion displays.
 - Extends the AppKit accessibility ABI with slider range and orientation metadata.
 - Completes the UI-tree and GPU-event plumbing for slider commits, outside-click blur, final drag samples, and change-before-commit ordering.
-- Maps the low numbered font roles to AppKit system fonts so the ProUI reference uses San Francisco metrics.
+- Maps the low numbered font roles to AprpKit system fonts so the ProUI reference uses San Francisco metrics.
 
 The SF font-role mapping is ProUI-specific and should not be proposed as a global default. Upstream it should either be omitted or replaced by an explicit system-font selection API. The cache size, concurrent raster creation, and refresh-rate scheduling also need focused memory, thread-safety, multi-display, and lifecycle tests before submission.
 

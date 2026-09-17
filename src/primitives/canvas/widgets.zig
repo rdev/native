@@ -971,6 +971,11 @@ pub const Widget = struct {
     /// to reproduce a reference's text block rhythm (SwiftUI spells the same
     /// thing `lineSpacing`, relative to the natural height).
     text_line_height: f32 = 0,
+    /// Authored letter spacing for a span paragraph, in points. 0 keeps
+    /// the face's natural advances. SwiftUI spells this `.tracking(_:)`
+    /// and CSS `letter-spacing`; negative values tighten a display
+    /// heading, which is what most reference designs specify.
+    text_tracking: f32 = 0,
     /// Renderer-owned logical-line gutter for a syntax-code paragraph.
     /// Zero keeps an ordinary paragraph; a positive value is the decimal
     /// digit width of the largest marker. The gutter is decoration, not

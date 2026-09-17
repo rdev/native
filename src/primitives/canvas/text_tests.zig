@@ -1977,6 +1977,36 @@ test "display list serializes per-run text layout options" {
     );
 }
 
+test "letter spacing widens a span paragraph by one quantum per cluster" {
+    const spans = [_]canvas.TextSpan{.{ .text = "ProUI" }};
+    const plain = canvas.textSpansIntrinsicWidth(&spans, .{ .size = 17 });
+    const tightened = canvas.textSpansIntrinsicWidth(&spans, .{ .size = 17, .tracking = -0.5 });
+    const loosened = canvas.textSpansIntrinsicWidth(&spans, .{ .size = 17, .tracking = 0.5 });
+    // Five clusters, so SwiftUI's `.tracking(-0.5)` on this wordmark is
+    // exactly 2.5pt of width — the whole reason the channel exists.
+    try std.testing.expectApproxEqAbs(plain - 2.5, tightened, 0.001);
+    try std.testing.expectApproxEqAbs(plain + 2.5, loosened, 0.001);
+}
+
+test "display list omits tracking at the default and serializes it otherwise" {
+    const tracked = [_]CanvasCommand{.{ .draw_text = .{
+        .id = 3,
+        .font_id = 1,
+        .size = 32,
+        .origin = geometry.PointF.init(4, 20),
+        .color = Color.rgb8(0, 0, 0),
+        .text = "Hi",
+        .tracking = -1,
+    } }};
+    var buffer: [512]u8 = undefined;
+    var writer = std.Io.Writer.fixed(&buffer);
+    try (DisplayList{ .commands = &tracked }).writeJson(&writer);
+    try std.testing.expectEqualStrings(
+        "{\"commands\":[{\"op\":\"draw_text\",\"id\":3,\"font\":1,\"size\":32,\"tracking\":-1,\"origin\":[4,20],\"color\":[0,0,0,1],\"text\":\"Hi\",\"glyphs\":[]}]}",
+        writer.buffered(),
+    );
+}
+
 test "display list serializes glyph text clusters" {
     const glyphs = [_]Glyph{
         .{ .id = 42, .x = 12, .y = 28, .advance = 9, .text_start = 0, .text_len = 1 },
