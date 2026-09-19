@@ -53,6 +53,14 @@ Updates the reviewed 64-bit `Widget` footprint from 776 to 816 bytes after addin
 
 The intrinsic-width change deliberately keys off `padding_is_kind_default`, so ordinary Native SDK buttons keep their current minimum size. Before upstreaming, add focused coverage for explicit zero and asymmetric padding, icon-plus-label measurement, custom-painted grouped buttons in both render walks, and custom input-group focus driven by baked and runtime state.
 
+### Pending — macOS packet-text font resolution guard
+
+- Sanitizes non-finite packet font sizes before asking AppKit to resolve a face.
+- Falls back to the system font when the requested face cannot be resolved, and rejects the draw command if AppKit cannot provide that fallback.
+- Prevents a nil `NSFont` from entering the attributed-string attributes dictionary, where Objective-C raises `NSInvalidArgumentException` on a raster worker and terminates the app.
+
+This is an SDK reliability fix independent of ProUI. Upstream it with a malformed-font-packet regression test and coverage for concurrent raster-cache construction, since the observed crash occurred while packet text was being rendered on a cache worker.
+
 ## Proposed upstream PR slices
 
 1. **Kit-owned widget painting API.** Submit the painter contract, invalidation behavior, rounded clipping, editable alignment/inset, and footprint coverage together. Decide with maintainers whether the fixed `[8]f32` payload is acceptable or whether a typed/tagged extension payload is preferable.
@@ -61,6 +69,7 @@ The intrinsic-width change deliberately keys off `padding_is_kind_default`, so o
 4. **Display refresh scheduling.** Submit refresh-rate-derived timers separately so multi-display movement, screen changes, and non-ProMotion behavior can be reviewed without the compositor diff.
 5. **Vector path capacity.** Prefer a configurable or measured capacity policy over an unconditional 8,192-element global budget unless profiling shows the memory tradeoff is acceptable for all consumers.
 6. **Custom control layout semantics.** Submit authored button insets, custom-painted group segmentation, and custom input-group focus-within as focused compatibility fixes. These behaviors are independent of ProUI's painters and keep extension seams consistent with their built-in counterparts.
+7. **macOS packet-text validation.** Submit finite font-size validation and nil-font fallback as a focused crash fix, with a malformed packet fixture that proves a failed font resolution cannot terminate a raster worker or the host process.
 
 Do not upstream ProUI painters, design tokens, component metrics, catalog code, or the SF font-role override as a Native SDK default.
 
