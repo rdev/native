@@ -671,6 +671,8 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
             on_key: ?*const fn (keyboard: canvas.WidgetKeyboardEvent) ?MsgT = null,
             /// Optional kit-owned controls, dispatched only when the callback claims an event.
             on_widget_pointer: ?*const fn (model: *const ModelT, event: core.CanvasWidgetPointerEvent) ?MsgT = null,
+            /// Observe unclaimed pointer events without suppressing their normal press/hold routing.
+            on_widget_pointer_observe: ?*const fn (model: *const ModelT, event: core.CanvasWidgetPointerEvent) ?MsgT = null,
             on_widget_keyboard: ?*const fn (model: *const ModelT, event: core.CanvasWidgetKeyboardEvent) ?MsgT = null,
             on_widget_context_press: ?*const fn (model: *const ModelT, event: core.CanvasWidgetContextPressEvent) ?MsgT = null,
             /// Deliver `.key_up` phases through `on_key` too. OFF by
@@ -5043,6 +5045,11 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
                 if (callback(&self.model, pointer_event)) |msg| {
                     try self.dispatch(runtime, pointer_event.window_id, msg);
                     return;
+                }
+            }
+            if (self.options.on_widget_pointer_observe) |callback| {
+                if (callback(&self.model, pointer_event)) |msg| {
+                    try self.dispatch(runtime, pointer_event.window_id, msg);
                 }
             }
             // Blur may have rebuilt the controlled tree (an editor commonly
