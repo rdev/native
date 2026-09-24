@@ -672,6 +672,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
             /// Optional kit-owned controls, dispatched only when the callback claims an event.
             on_widget_pointer: ?*const fn (model: *const ModelT, event: core.CanvasWidgetPointerEvent) ?MsgT = null,
             on_widget_keyboard: ?*const fn (model: *const ModelT, event: core.CanvasWidgetKeyboardEvent) ?MsgT = null,
+            on_widget_context_press: ?*const fn (model: *const ModelT, event: core.CanvasWidgetContextPressEvent) ?MsgT = null,
             /// Deliver `.key_up` phases through `on_key` too. OFF by
             /// default: most key consumers act on presses alone, and a
             /// release arriving unexpectedly would double-fire a
@@ -5859,6 +5860,12 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
         /// the desktop press-and-hold alternative — dispatch the press
         /// target's `on_hold` Msg immediately.
         fn handleContextPress(self: *Self, runtime: *Runtime, press_event: core.CanvasWidgetContextPressEvent) anyerror!void {
+            if (self.options.on_widget_context_press) |callback| {
+                if (callback(&self.model, press_event)) |msg| {
+                    try self.dispatch(runtime, press_event.window_id, msg);
+                    return;
+                }
+            }
             const tree = self.treeForViewLabel(press_event.view_label) orelse return;
             const target = press_event.press_target orelse return;
             if (tree.msgForHold(target.id)) |msg| {
