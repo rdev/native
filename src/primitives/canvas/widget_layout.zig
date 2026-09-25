@@ -1079,6 +1079,7 @@ fn wrappedVerticalExtentForWidth(widget: Widget, width: f32, tokens: DesignToken
             break :blk sum;
         },
         .stack, .panel, .card, .bubble, .resizable, .popover, .tooltip => blk: {
+            if (widget.kind == .tooltip and widget.children.len == 0) return preferredMainExtent(widget, .vertical, tokens);
             var max_height: f32 = 0;
             for (widget.children) |child| {
                 if (!widgetTakesFlowSlot(child)) continue;
