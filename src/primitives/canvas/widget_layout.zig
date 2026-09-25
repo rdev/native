@@ -2657,6 +2657,33 @@ fn bubbleThreadWidthCap(child: Widget, available: f32, value: f32) f32 {
     return @min(value, @max(available * bubble_max_width_fraction, nonNegative(child.layout.min_size.width)));
 }
 
+/// Controls whose web/SwiftUI contract is `fit-content` keep their
+/// intrinsic width when placed directly in a column. A column's default
+/// stretch alignment is useful for fields and structural surfaces, but it
+/// must not silently turn a button, toggle, attached group, or pill tab
+/// strip into a full-width band. Authors can still request a definite width
+/// through the ordinary frame channel.
+fn compactControlHugsColumn(widget: Widget, axis: LayoutAxis) bool {
+    // `frame.width` is also where retained layout writes the resolved
+    // geometry. Looking at it here makes an intrinsic control hug on the
+    // first pass, then stretch after the first rebuild because the resolved
+    // width is mistaken for an authored one. The builder records a real
+    // `width=` as a definite max bound, which survives reconciliation
+    // without conflating authored and runtime geometry.
+    if (axis != .vertical or widget.layout.max_size.width > 0) return false;
+    return switch (widget.kind) {
+        .button,
+        .toggle_button,
+        .icon_button,
+        .button_group,
+        .toggle_group,
+        .segmented_control,
+        .tabs,
+        => true,
+        else => false,
+    };
+}
+
 fn preferredMainExtent(widget: Widget, axis: LayoutAxis, tokens: DesignTokens) f32 {
     const value = switch (axis) {
         .horizontal => widget.frame.width,
@@ -2690,6 +2717,13 @@ fn preferredCrossExtent(widget: Widget, axis: LayoutAxis, available: f32, alignm
         // remains wider so horizontal scrolling keeps its full extent.
         const remaining = @max(0, available - widget.frame.x);
         return @max(min_value, boundedByMax(@max(value, remaining), max_value));
+    }
+    // Compact controls must resolve their intrinsic width before consulting
+    // `frame`: a retained frame contains last pass's assigned width even
+    // when the author never declared one. Definite authored widths opt out
+    // in `compactControlHugsColumn` through `max_size.width` above.
+    if (compactControlHugsColumn(widget, axis)) {
+        return @max(min_value, boundedByMax(@min(available, intrinsicCrossExtent(widget, axis, tokens)), max_value));
     }
     if (value > 0) return @max(min_value, boundedByMax(value, max_value));
     // The cross axis of a vertical container is the child's WIDTH, so

@@ -521,6 +521,9 @@ pub const WidgetLayoutStyle = struct {
 pub const WidgetStyle = struct {
     background: ?Color = null,
     foreground: ?Color = null,
+    /// Exact type size for authored controls whose reference typography
+    /// falls between the theme's default/small/large rungs.
+    text_size: ?f32 = null,
     accent: ?Color = null,
     accent_foreground: ?Color = null,
     border: ?Color = null,
