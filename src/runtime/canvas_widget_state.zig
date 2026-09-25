@@ -698,6 +698,22 @@ pub fn RuntimeCanvasWidgetState(comptime Runtime: type) type {
             // duration and house easing, no app declaration anywhere.
             // Reduced motion (or a zeroed register) snaps.
             plan.duration_ms = view.widget_tokens.motion.durationMs(.normal);
+            for (next.nodes) |node| {
+                if (node.widget.kind != .accordion or node.widget.id == 0) continue;
+                var revealing = false;
+                for (plan.revealing_ids[0..plan.revealing_id_count]) |id| {
+                    if (id == node.widget.id) {
+                        revealing = true;
+                        break;
+                    }
+                }
+                if (!revealing) continue;
+                const requested = node.widget.paint_data[7];
+                if (std.math.isFinite(requested) and requested > 0 and requested <= 1000) {
+                    plan.duration_ms = @intFromFloat(requested);
+                    break;
+                }
+            }
             if (self.appearance.reduce_motion or plan.duration_ms == 0) {
                 plan.action = retire_or_none;
                 return plan;

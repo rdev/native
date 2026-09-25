@@ -872,8 +872,25 @@ fn emitWidgetLayoutNodeContent(
             switch (accordionLayoutDisclosure(layout, node_index, paint_widget, state)) {
                 .closed => return,
                 .revealing => {
-                    try builder.pushClip(.{ .id = widgetPartId(paint_widget.id, 9), .rect = paint_widget.frame });
-                    try emitWidgetLayoutChildren(builder, layout, node_index, tokens, state);
+                    try builder.pushClip(widgetContentClip(paint_widget, tokens));
+                    if (paint_widget.paint_data[6] == -1) {
+                        // A composed disclosure has no header. Match the
+                        // short SwiftUI move+opacity transition while its
+                        // retained full-size content is revealed by the
+                        // animated clipping frame.
+                        const bottom = widget_tree.disclosureContentBottom(layout, node_index);
+                        const content_height = @max(0, bottom - paint_widget.frame.y);
+                        const visible_height = @max(0, paint_widget.frame.height);
+                        const progress = if (content_height > 0) std.math.clamp(visible_height / content_height, 0, 1) else 1;
+                        const travel = @max(0, content_height - visible_height);
+                        try builder.pushOpacity(progress);
+                        try builder.transform(Affine.translate(0, -travel));
+                        try emitWidgetLayoutChildren(builder, layout, node_index, tokens, state);
+                        try builder.transform(Affine.translate(0, travel));
+                        try builder.popOpacity();
+                    } else {
+                        try emitWidgetLayoutChildren(builder, layout, node_index, tokens, state);
+                    }
                     try builder.popClip();
                     return;
                 },
@@ -1181,7 +1198,7 @@ fn widgetContentClipRadius(widget: Widget, tokens: DesignTokens) Radius {
         .alert => controlRadius(widget, alertControlVisualTokens(tokens), tokens.radius.lg),
         .card => controlRadius(widget, cardControlVisualTokens(tokens), tokens.radius.lg),
         .resizable, .panel, .menu_surface, .dropdown_menu => controlRadius(widget, surfaceControlVisualTokens(widget, tokens), tokens.radius.lg),
-        .accordion => .{},
+        .accordion => if (widget.style.radius) |radius| Radius.all(@max(0, radius)) else .{},
         .dialog => controlRadius(widget, dialogControlVisualTokens(tokens), tokens.radius.xl),
         .drawer => controlRadius(widget, drawerControlVisualTokens(tokens), tokens.radius.xl),
         .sheet => controlRadius(widget, sheetControlVisualTokens(tokens), tokens.radius.lg),
