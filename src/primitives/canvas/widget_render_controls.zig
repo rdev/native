@@ -554,7 +554,10 @@ pub fn emitSearchFieldWidget(builder: *Builder, widget: Widget, tokens: DesignTo
     const visual = textInputControlVisualTokens(widget, tokens);
     const radius = controlRadius(widget, visual, tokens.radius.md);
     const text_size = widgetTextInputSize(widget, tokens);
-    const icon_size = @max(8, text_size - 2);
+    const icon_size = if (std.math.isFinite(widget.paint_data[6]) and widget.paint_data[6] > 0)
+        widget.paint_data[6]
+    else
+        @max(8, text_size - 2);
     const text_inset = widgetTextInputInset(widget, tokens);
     const layout_options = widgetTextInputLayoutOptions(widget, tokens, text_size, text_inset);
     const clip_rect = widgetTextInputClipRect(widget, tokens, text_size, text_inset, layout_options);

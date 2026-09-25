@@ -507,7 +507,7 @@ pub fn widgetTextInputInset(widget: Widget, tokens: DesignTokens) f32 {
     if (std.math.isFinite(widget.paint_data[7]) and widget.paint_data[7] > 0) return widget.paint_data[7];
     const text_size = widgetTextInputSize(widget, tokens);
     return switch (widget.kind) {
-        .search_field, .combobox => widget_metrics.widgetControlInset(widget, tokens, tokens.spacing.md) + @max(widget_metrics.widgetSizedDensityValue(widget, tokens, 8), text_size - 2) + widget_metrics.widgetControlInset(widget, tokens, tokens.spacing.sm),
+        .search_field, .combobox => widget_metrics.widgetControlInset(widget, tokens, tokens.spacing.md) + (if (std.math.isFinite(widget.paint_data[6]) and widget.paint_data[6] > 0) widget.paint_data[6] else @max(widget_metrics.widgetSizedDensityValue(widget, tokens, 8), text_size - 2)) + widget_metrics.widgetControlInset(widget, tokens, tokens.spacing.sm),
         else => widget_metrics.widgetControlInset(widget, tokens, tokens.spacing.md),
     };
 }

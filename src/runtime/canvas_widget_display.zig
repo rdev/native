@@ -182,22 +182,29 @@ pub fn RuntimeCanvasWidgetDisplay(comptime Runtime: type) type {
             const duration_ms = motion.durationMs(.fast);
             if (duration_ms == 0) {
                 self.views[view_index].removeCanvasRenderAnimation(canvas.toggleWidgetKnobCommandId(animation.id));
+                if (animation.custom_thumb) {
+                    self.views[view_index].removeCanvasRenderAnimation(canvas.widgetPartId(animation.id, 4));
+                    self.views[view_index].removeCanvasRenderAnimation(canvas.widgetPartId(animation.id, 5));
+                }
                 return;
             }
 
             const from_tx = if (animation.selected) animation.travel else -animation.travel;
-            const render_animation = motion.animation(.{
-                .id = canvas.toggleWidgetKnobCommandId(animation.id),
-                .start_ns = canvasRenderAnimationStartNsForView(&self.views[view_index]),
-                .duration = .fast,
-                .from_transform = canvas.Affine.translate(from_tx, 0),
-                .to_transform = canvas.Affine.identity(),
-            });
-            self.views[view_index].replaceCanvasRenderAnimation(render_animation) catch |err| switch (err) {
-                error.RenderAnimationListFull => return,
-                else => return err,
-            };
-            self.views[view_index].replaceCanvasRenderAnimationDirtyBounds(render_animation.id, animation.dirty_bounds) catch {};
+            const part_count: u64 = if (animation.custom_thumb) 3 else 1;
+            for (0..part_count) |part_index| {
+                const render_animation = motion.animation(.{
+                    .id = canvas.widgetPartId(animation.id, 3 + part_index),
+                    .start_ns = canvasRenderAnimationStartNsForView(&self.views[view_index]),
+                    .duration = .fast,
+                    .from_transform = canvas.Affine.translate(from_tx, 0),
+                    .to_transform = canvas.Affine.identity(),
+                });
+                self.views[view_index].replaceCanvasRenderAnimation(render_animation) catch |err| switch (err) {
+                    error.RenderAnimationListFull => return,
+                    else => return err,
+                };
+                self.views[view_index].replaceCanvasRenderAnimationDirtyBounds(render_animation.id, animation.dirty_bounds) catch {};
+            }
         }
 
         pub fn publishCanvasWidgetAccessibility(self: *Runtime, view_index: usize) anyerror!void {

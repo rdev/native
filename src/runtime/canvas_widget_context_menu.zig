@@ -101,6 +101,17 @@ pub fn RuntimeCanvasWidgetContextMenu(comptime Runtime: type) type {
             };
         }
 
+        /// A primary click opens an explicitly marked native-select menu.
+        /// Ordinary context menus remain secondary-click only.
+        pub fn canvasWidgetNativeMenuPrimaryDown(self: *Runtime, input_event: platform.GpuSurfaceInputEvent) bool {
+            if (input_event.button != 0 or input_event.kind != .pointer_down) return false;
+            const routed = CanvasWidgetEventMethods().routeCanvasWidgetPointerInput(self, input_event, &self.widget_event_route_entries) catch return false;
+            const pointer_event = routed orelse return false;
+            const index = runtimeFindViewIndex(self, input_event.window_id, input_event.label) orelse return false;
+            const node_index = deepestContextMenuRouteNode(self, index, pointer_event.route) orelse return false;
+            return self.views[index].widget_layout_nodes[node_index].widget.paint_data[7] == 2;
+        }
+
         /// Present the context menu for a secondary-button press: hit-test
         /// the point, pick the menu (app-declared, editable-text default,
         /// or static-selection copy), and hand it to the platform. An
@@ -132,6 +143,10 @@ pub fn RuntimeCanvasWidgetContextMenu(comptime Runtime: type) type {
             // authored menu, platform-appropriate presentation.
             if (deepestContextMenuRouteNode(self, index, pointer_event.route)) |node_index| {
                 const widget = self.views[index].widget_layout_nodes[node_index].widget;
+                const menu_point = if (input_event.button == 0 and widget.paint_data[7] == 2)
+                    geometry.PointF.init(widget.frame.x, widget.frame.y + widget.frame.height + 2)
+                else
+                    point;
                 const count = @min(widget.context_menu.len, items.len);
                 if (count == 0) return;
                 if (has_presenter) {
@@ -139,6 +154,7 @@ pub fn RuntimeCanvasWidgetContextMenu(comptime Runtime: type) type {
                         items[item_index] = .{
                             .id = @intCast(item_index + 1),
                             .label = item.label,
+                            .checked = item.checked,
                             .enabled = item.enabled,
                             .separator = item.separator,
                         };
@@ -147,7 +163,7 @@ pub fn RuntimeCanvasWidgetContextMenu(comptime Runtime: type) type {
                         .window_id = input_event.window_id,
                         .target_id = widget.id,
                         .kind = .app,
-                    }, point, items[0..count])) {
+                    }, menu_point, items[0..count])) {
                         .shown => |shown| {
                             // Presentation is asynchronous on GTK (and the
                             // snapshot is harmless where the presenter blocks):
@@ -185,7 +201,7 @@ pub fn RuntimeCanvasWidgetContextMenu(comptime Runtime: type) type {
                     .window_id = input_event.window_id,
                     .view_label = self.views[index].label,
                     .target_id = widget.id,
-                    .point = point,
+                    .point = menu_point,
                 } });
                 return;
             }
