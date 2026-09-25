@@ -16,6 +16,7 @@ pub const CanvasWidgetToggleAnimation = struct {
     selected: bool,
     travel: f32,
     dirty_bounds: ?geometry.RectF,
+    custom_thumb: bool = false,
 };
 
 fn setCanvasWidgetNodeWidth(node: *canvas.WidgetLayoutNode, width: f32) void {
@@ -29,13 +30,18 @@ pub fn RuntimeViewCanvasWidgetControl(comptime RuntimeView: type) type {
             const index = self.canvasWidgetNodeIndexById(id) orelse return null;
             const widget = self.widget_layout_nodes[index].widget;
             if (!canvasWidgetSwitchControlKind(widget.kind) or widget.state.disabled) return null;
-            const travel = canvas.toggleWidgetKnobTravel(widget, self.widget_tokens);
+            const custom_thumb = widget.paint_data[7] == 1;
+            const travel = if (custom_thumb)
+                widget.frame.width - (if (widget.paint_data[0] == 1) @as(f32, 12) else 14) - 4
+            else
+                canvas.toggleWidgetKnobTravel(widget, self.widget_tokens);
             if (travel <= 0) return null;
             return .{
                 .id = id,
                 .selected = canvasWidgetBooleanSelected(widget),
                 .travel = travel,
                 .dirty_bounds = self.canvasWidgetDirtyBounds(index, widget.frame),
+                .custom_thumb = custom_thumb,
             };
         }
 
