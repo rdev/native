@@ -1691,6 +1691,7 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
                 .format_local_time_fn = effectsFormatLocalTime,
                 .execute_capability_fn = effectsExecuteCapability,
                 .replay_window_result_fn = effectsRestoreWindowResult,
+                .open_file_dialog_fn = effectsOpenFileDialog,
             });
             if (runtime.options.session_recorder) |recorder| {
                 if (self.options.recording_policy) |policy| recorder.recording_policy = policy;
@@ -2841,6 +2842,50 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
                 if (range.start_index < record.start_index or range.end_index > record.end_index) return true;
             }
             return false;
+        }
+
+        /// A native scroll driver already translates retained rows for
+        /// every offset it reports. Rebuilding the whole app for each
+        /// sub-row movement defeats that fast path; re-window only when
+        /// the visible span is about to exhaust the mounted rows. Keep
+        /// one row of lead room when the list requested overscan, so a
+        /// normal wheel step never exposes an unmounted edge.
+        fn virtualWindowNeedsScrollRebuild(self: *const Self, layout: canvas.WidgetLayoutTree, id: canvas.ObjectId) bool {
+            for (self.virtual_windows[0..self.virtual_window_count]) |record| {
+                if (record.id != id) continue;
+                const node = layout.findById(id) orelse return true;
+                const viewport = node.frame.inset(node.widget.layout.padding).normalized();
+                if (viewport.isEmpty() or record.item_count == 0) return false;
+                const lead: usize = @min(record.overscan, 1);
+                // Inexact extents converge only as mounted rows are
+                // measured. A wheel step can cross a very short row
+                // entirely; skipping its rebuild would leave that row
+                // forever estimated and drift the scrollbar's total.
+                if (record.variable and !record.exact_extents) return true;
+                if (record.variable) {
+                    const table = self.virtualExtentTableForId(id) orelse return true;
+                    const offset = @max(0, node.widget.value);
+                    const first = table.indexAtOffset(offset);
+                    const end = @min(record.item_count, table.indexAtOffset(offset + viewport.height) + 1);
+                    const start_needed = first -| lead;
+                    const end_needed = @min(record.item_count, end + lead);
+                    return start_needed < record.start_index or end_needed > record.end_index;
+                }
+                const item_extent = if (node.widget.layout.virtual_item_extent > 0)
+                    node.widget.layout.virtual_item_extent
+                else
+                    record.item_extent;
+                const range = canvas.virtualListRange(.{
+                    .item_count = record.item_count,
+                    .item_extent = item_extent,
+                    .item_gap = record.gap,
+                    .viewport_extent = viewport.height,
+                    .scroll_offset = node.widget.value,
+                    .overscan = lead,
+                });
+                return range.start_index < record.start_index or range.end_index > record.end_index;
+            }
+            return true;
         }
 
         /// The extent source backing `Ui.virtualWindow` for
@@ -6769,7 +6814,12 @@ pub fn UiAppWithFeatures(comptime ModelT: type, comptime MsgT: type, comptime fe
             }
             const rebuild_plan = component_policy.plan(self.options.component_policy, .scroll_rebuild, rebuilt, self.installed, std.mem.eql(u8, scroll_event.view_label, self.options.canvas_label), @intFromBool(self.isVirtualWindowId(scroll_event.id)), 0);
             if (rebuild_plan[0] != 0) {
-                try self.rebuild(runtime, scroll_event.window_id);
+                // Reuse mounted rows while the scrolled window still covers
+                // the viewport; rebuild only when it runs out of rows.
+                const layout = try runtime.canvasWidgetLayout(scroll_event.window_id, scroll_event.view_label);
+                if (self.virtualWindowNeedsScrollRebuild(layout, scroll_event.id)) {
+                    try self.rebuild(runtime, scroll_event.window_id);
+                }
             }
         }
 
@@ -7061,6 +7111,12 @@ fn effectsRevealPath(context: *anyopaque, path: []const u8) anyerror!void {
 fn effectsFormatLocalTime(context: *anyopaque, timestamp_ms: i64, style: platform.LocalTimeStyle, buffer: []u8) anyerror![]const u8 {
     const runtime: *Runtime = @ptrCast(@alignCast(context));
     return runtime.formatLocalTime(timestamp_ms, style, buffer);
+}
+
+fn effectsOpenFileDialog(context: *anyopaque, title: []const u8, buffer: []u8) anyerror!platform.OpenDialogResult {
+    const runtime: *Runtime = @ptrCast(@alignCast(context));
+    if (!security.hasPermission(runtime.options.security.permissions, security.permission_dialog)) return error.PermissionDenied;
+    return runtime.showOpenDialog(.{ .title = title }, buffer);
 }
 
 /// The build storage pinned under a presented native context menu:
