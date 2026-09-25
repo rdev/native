@@ -289,6 +289,17 @@ pub fn disclosureContentBottom(layout: anytype, node_index: usize) f32 {
             while (index < layout.nodes.len and layout.nodes[index].depth > subtree_depth) : (index += 1) {}
             continue;
         }
+        // A nested disclosure owns its own animated extent. Its retained
+        // descendants extend past a closed frame so they are ready to
+        // reveal, but that concealed geometry must not keep the parent
+        // disclosure from ever reaching its settled-open pose.
+        if (widgetKindDisclosureAnimated(child.widget.kind)) {
+            bottom = @max(bottom, child.frame.normalized().maxY());
+            const subtree_depth = child.depth;
+            index += 1;
+            while (index < layout.nodes.len and layout.nodes[index].depth > subtree_depth) : (index += 1) {}
+            continue;
+        }
         bottom = @max(bottom, child.frame.normalized().maxY());
         if (widgetKindDisclosureAnimated(child.widget.kind)) {
             const subtree_depth = child.depth;

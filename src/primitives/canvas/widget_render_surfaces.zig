@@ -513,6 +513,10 @@ pub fn emitBubbleWidgetReactions(builder: *Builder, widget: Widget, tokens: Desi
 /// explicit background (author style or themed control tokens) still
 /// paints.
 pub fn emitAccordionWidgetChrome(builder: *Builder, widget: Widget, tokens: DesignTokens) Error!void {
+    // Composed disclosures draw their trigger and surrounding surface in
+    // their parent. Keep the accordion's native reveal/semantics behavior
+    // without painting a second trigger, divider, or chevron.
+    if (widget.paint_data[6] == -1) return;
     if (tokens.control_geometry_policy != null) return recipe.emit(.accordion, builder, widget, tokens, surfaceControlVisualTokens(widget, tokens), 0);
     const frame = widget.frame.normalized();
     if (frame.isEmpty()) return;

@@ -2436,6 +2436,11 @@ fn compiledWrappedExtentReference(widget: Widget, width: f32, tokens: DesignToke
 }
 
 pub fn accordionHeaderHeight(widget: Widget, tokens: DesignTokens) f32 {
+    // A composed disclosure can provide its own trigger as a sibling and
+    // use the accordion only for the retained reveal. -1 gives that reveal
+    // a zero-height header; positive values size a custom chrome band.
+    if (widget.paint_data[6] == -1) return 0;
+    if (widget.paint_data[6] > 0) return widget.paint_data[6];
     // The house trigger band: the label line with py-4 — a spacing.lg
     // inset above and below it (density/size scaled).
     const text_size = widgetBodyTextSize(widget, tokens);
