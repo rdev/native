@@ -623,7 +623,10 @@ fn emitWidgetDepthContent(builder: *Builder, widget: Widget, tokens: DesignToken
         else
             try widget_render_controls.emitTextFieldWidget(builder, paint_widget, tokens),
         .search_field, .combobox => try widget_render_controls.emitSearchFieldWidget(builder, paint_widget, tokens),
-        .tooltip => try widget_render_controls.emitTooltipWidget(builder, paint_widget, tokens),
+        .tooltip => {
+            try widget_render_controls.emitTooltipWidget(builder, paint_widget, tokens);
+            try emitWidgetClippedChildren(builder, paint_widget, tokens, depth);
+        },
         .menu_item => try widget_render_controls.emitMenuItemWidget(builder, paint_widget, tokens),
         .list_item => {
             try widget_render_controls.emitListItemWidget(builder, paint_widget, tokens);
@@ -1063,7 +1066,10 @@ fn emitWidgetLayoutNodeContent(
         else
             try widget_render_controls.emitTextFieldWidget(builder, paint_widget, tokens),
         .search_field, .combobox => try widget_render_controls.emitSearchFieldWidget(builder, paint_widget, tokens),
-        .tooltip => try widget_render_controls.emitTooltipWidget(builder, paint_widget, tokens),
+        .tooltip => {
+            try widget_render_controls.emitTooltipWidget(builder, paint_widget, tokens);
+            try emitWidgetLayoutClippedChildren(builder, layout, node_index, tokens, state, paint_widget);
+        },
         .menu_item => try widget_render_controls.emitMenuItemWidget(builder, paint_widget, tokens),
         .list_item => try widget_render_controls.emitListItemWidget(builder, paint_widget, tokens),
         .data_cell => try emitDataCellContent(builder, paint_widget, tokens),
@@ -3088,7 +3094,14 @@ fn emitImageWidget(builder: *Builder, widget: Widget, tokens: DesignTokens) Erro
     if (tokens.control_command_policy != null) return emitCompiledImage(builder, widget, tokens);
     if (widget.image_id == 0 or widget.frame.normalized().isEmpty()) return;
     const clips_image = widget.image_fit == .cover;
-    if (clips_image) try builder.pushClip(.{ .id = widgetPartId(widget.id, 2), .rect = widget.frame });
+    if (clips_image) try builder.pushClip(.{
+        .id = widgetPartId(widget.id, 2),
+        .rect = widget.frame,
+        .radius = if (widget.layout.clip_content and widget.style.radius != null)
+            Radius.all(@max(0, widget.style.radius.?))
+        else
+            .{},
+    });
     try builder.drawImage(.{
         .id = widgetPartId(widget.id, 1),
         .image_id = widget.image_id,
