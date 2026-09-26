@@ -3792,10 +3792,11 @@ test "built-in component primitive widgets render distinct house chrome" {
     try layout.emitDisplayList(&builder, .{});
 
     const display_list = builder.displayList();
-    // Eight live commands: avatar fill/text/stroke, badge fill/text (its
-    // default zero-width edge emits nothing), separator, skeleton, and
+    // Eleven live commands: avatar fill/text/stroke, badge fill/text (its
+    // default zero-width edge emits nothing), separator, the skeleton's
+    // placeholder plus its clipped highlight band (clip/fill/unclip), and
     // spinner. This count deliberately excludes dead rasterizer work.
-    try std.testing.expectEqual(@as(usize, 8), display_list.commandCount());
+    try std.testing.expectEqual(@as(usize, 11), display_list.commandCount());
     try std.testing.expect(display_list.commands[0] == .fill_rounded_rect);
     switch (display_list.commands[1]) {
         .draw_text => |text| try std.testing.expectEqualStrings("NS", text.text),
@@ -3811,11 +3812,16 @@ test "built-in component primitive widgets render distinct house chrome" {
         else => return error.TestUnexpectedResult,
     }
     try std.testing.expect(display_list.commands[5] == .fill_rect);
+    // The skeleton: its placeholder fill, then the highlight band
+    // clipped to that placeholder (the band is what animates).
     try std.testing.expect(display_list.commands[6] == .fill_rounded_rect);
+    try std.testing.expect(display_list.commands[7] == .push_clip);
+    try std.testing.expect(display_list.commands[8] == .fill_rect);
+    try std.testing.expect(display_list.commands[9] == .pop_clip);
     // The spinner (house arc register): ONE stroked arc in the page
     // ink — no track — with the stroke scaling at 1/12 of the box
     // (28px box -> 2.333px stroke).
-    switch (display_list.commands[7]) {
+    switch (display_list.commands[10]) {
         .stroke_path => |arc| {
             try expectFillColor(ColorTokens.light().text, arc.stroke.fill);
             try std.testing.expectApproxEqAbs(@as(f32, 28.0 * 2.0 / 24.0), arc.stroke.width, 0.001);

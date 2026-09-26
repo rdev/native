@@ -270,6 +270,10 @@ pub fn skeletonWidgetFillCommandId(id: ObjectId) ObjectId {
     return widget_render.skeletonWidgetFillCommandId(id);
 }
 
+pub fn skeletonWidgetHighlightCommandId(id: ObjectId) ObjectId {
+    return widget_render.skeletonWidgetHighlightCommandId(id);
+}
+
 pub fn spinnerWidgetRotationCenter(widget: Widget, tokens: DesignTokens) geometry.PointF {
     return widget_render.spinnerWidgetRotationCenter(widget, tokens);
 }
@@ -357,6 +361,10 @@ pub fn cursorForWidgetHit(hit: ?WidgetHit) WidgetCursor {
 
 pub fn cursorForWidgetTarget(kind: WidgetKind, state: WidgetState) WidgetCursor {
     return widget_access.cursorForWidgetTarget(kind, state);
+}
+
+pub fn cursorForWidget(widget: Widget) WidgetCursor {
+    return widget_access.cursorForWidget(widget);
 }
 
 fn collectWidgetSemantics(layout: WidgetLayoutTree, output: []WidgetSemanticsNode) Error![]const WidgetSemanticsNode {
