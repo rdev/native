@@ -514,11 +514,20 @@ pub fn RuntimeCanvasWidgetDisplay(comptime Runtime: type) type {
                         .skeleton => {
                             const command_id = canvas.skeletonWidgetFillCommandId(node.widget.id);
                             const start_ns = existingCanvasRenderAnimationStartNs(view, command_id) orelse canvasRenderAnimationStartNsForView(view);
+                            // LINEAR, not the house curve: a skeleton's
+                            // wash is a few points of white over a dark
+                            // surface, so the whole sweep crosses only a
+                            // dozen or so 8-bit levels. An eased sweep
+                            // spends its first and last third inside one
+                            // level — the pulse visibly parks, then
+                            // jumps, and reads as a dropped frame rate.
+                            // Spacing the steps evenly is what makes the
+                            // same range look continuous.
                             view.replaceCanvasRenderAnimation(.{
                                 .id = command_id,
                                 .start_ns = start_ns,
                                 .duration_ms = skeleton_pulse_sweep_ms,
-                                .easing = view.widget_tokens.motion.easing,
+                                .easing = .linear,
                                 .from_opacity = 1,
                                 .to_opacity = skeleton_pulse_min_opacity,
                                 .loop = .ping_pong,

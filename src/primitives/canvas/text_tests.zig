@@ -1969,9 +1969,9 @@ test "display list serializes per-run text layout options" {
 
 test "letter spacing widens a span paragraph by one quantum per cluster" {
     const spans = [_]canvas.TextSpan{.{ .text = "ProUI" }};
-    const plain = canvas.textSpansIntrinsicWidth(&spans, .{ .size = 17 });
-    const tightened = canvas.textSpansIntrinsicWidth(&spans, .{ .size = 17, .tracking = -0.5 });
-    const loosened = canvas.textSpansIntrinsicWidth(&spans, .{ .size = 17, .tracking = 0.5 });
+    const plain = canvas.text_spans.textSpansIntrinsicWidth(&spans, .{ .size = 17 });
+    const tightened = canvas.text_spans.textSpansIntrinsicWidth(&spans, .{ .size = 17, .tracking = -0.5 });
+    const loosened = canvas.text_spans.textSpansIntrinsicWidth(&spans, .{ .size = 17, .tracking = 0.5 });
     // Five clusters, so SwiftUI's `.tracking(-0.5)` on this wordmark is
     // exactly 2.5pt of width — the whole reason the channel exists.
     try std.testing.expectApproxEqAbs(plain - 2.5, tightened, 0.001);

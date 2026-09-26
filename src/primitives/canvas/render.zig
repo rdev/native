@@ -185,7 +185,14 @@ fn applyRenderOverride(command: *RenderCommand, override: CanvasRenderOverride) 
         command.opacity *= std.math.clamp(opacity, 0, 1);
     }
     if (override.transform) |transform| {
-        command.transform = command.transform.multiply(transform);
+        // PRE-multiply: an animation's affine is authored in VIEW space
+        // (the runtime hands it view-space translations and a view-space
+        // rotation center), while `command.transform` can be the local
+        // space a command was emitted in — a vector icon's viewBox map,
+        // for instance. Post-multiplying pushed the animation through
+        // that local map, so an icon inside a sliding panel travelled
+        // `offset * icon_scale` and lagged the chrome it belongs to.
+        command.transform = transform.multiply(command.transform);
         if (renderCommandBoundsWithOverride(command.*, null)) |bounds| {
             command.bounds = bounds;
         } else {
@@ -211,7 +218,7 @@ pub fn renderOverrideDirtyBounds(commands: []const RenderCommand, previous: []co
 
 fn renderCommandBoundsWithOverride(command: RenderCommand, override: ?CanvasRenderOverride) ?geometry.RectF {
     const override_transform = if (override) |value| value.transform else null;
-    const transform = if (override_transform) |value| command.transform.multiply(value) else command.transform;
+    const transform = if (override_transform) |value| value.multiply(command.transform) else command.transform;
     var bounds = transform.transformRect(command.local_bounds);
     if (command.clip) |clip| {
         bounds = geometry.RectF.intersection(bounds, clip);
