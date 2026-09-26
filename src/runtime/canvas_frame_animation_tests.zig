@@ -522,7 +522,7 @@ test "runtime staggers segmented spinner opacity loops and removes them on unmou
     try std.testing.expect(!view.canvasRenderAnimationsActive(60 * std.time.ns_per_s));
 }
 
-test "runtime pulses visible skeletons and removes the loop on unmount" {
+test "runtime sweeps visible skeletons and removes the loop on unmount" {
     const TestApp = struct {
         fn app(self: *@This()) App {
             return .{ .context = self, .name = "gpu-canvas-skeleton-pulse", .source = platform.WebViewSource.html("<h1>Hello</h1>") };
@@ -552,35 +552,33 @@ test "runtime pulses visible skeletons and removes the loop on unmount" {
     _ = try harness.runtime.setCanvasWidgetLayout(1, "canvas", layout);
     _ = try harness.runtime.emitCanvasWidgetDisplayList(1, "canvas", .{});
 
-    // The visible skeleton arms ONE looping ping-pong opacity pulse on
-    // its fill command — never completing, so frames keep sampling it.
+    // The visible skeleton arms ONE looping translation of its highlight
+    // band — never completing, so frames keep sampling it. It animates
+    // POSITION rather than opacity: a placeholder's wash spans six
+    // 8-bit values, so a fade can only ever step six times a sweep.
     const view = &harness.runtime.views[0];
-    const fill_id = canvas.skeletonWidgetFillCommandId(5);
+    const highlight_id = canvas.skeletonWidgetHighlightCommandId(5);
     try std.testing.expectEqual(@as(usize, 1), view.canvas_widget_loop_animation_count);
-    try std.testing.expectEqual(fill_id, view.canvas_widget_loop_animation_ids[0]);
+    try std.testing.expectEqual(highlight_id, view.canvas_widget_loop_animation_ids[0]);
     try std.testing.expectEqual(@as(usize, 1), view.canvas_render_animation_count);
-    try std.testing.expectEqual(canvas.CanvasRenderAnimationLoop.ping_pong, view.canvasRenderAnimations()[0].loop);
+    try std.testing.expectEqual(canvas.CanvasRenderAnimationLoop.wrap, view.canvasRenderAnimations()[0].loop);
     try std.testing.expect(view.canvasRenderAnimationsActive(60 * std.time.ns_per_s));
 
-    // The pulse OSCILLATES between full opacity and the floor: the
-    // sweep midpoint dims the fill, the sweep end sits at the floor,
-    // and the next sweep brings it back up — never below 0.5, never
-    // above 1 (the placeholder must not read as empty space).
+    // The band travels the placeholder's own width at a constant speed,
+    // so the bright centre crosses it exactly once per cycle.
     const start_ns = view.canvasRenderAnimations()[0].start_ns;
+    try std.testing.expect(view.canvasRenderAnimations()[0].to_transform.?.tx >= 160);
     var overrides: [4]canvas.CanvasRenderOverride = undefined;
-    const mid = try view.sampleCanvasRenderAnimations(start_ns + 500 * std.time.ns_per_ms, &overrides);
+    const mid = try view.sampleCanvasRenderAnimations(start_ns + 700 * std.time.ns_per_ms, &overrides);
     try std.testing.expectEqual(@as(usize, 1), mid.len);
-    try std.testing.expectEqual(fill_id, mid[0].id);
-    const mid_opacity = mid[0].opacity.?;
-    try std.testing.expect(mid_opacity < 1 and mid_opacity >= 0.5);
-    var floor_overrides: [4]canvas.CanvasRenderOverride = undefined;
-    const floor = try view.sampleCanvasRenderAnimations(start_ns + 1000 * std.time.ns_per_ms, &floor_overrides);
-    try std.testing.expectApproxEqAbs(@as(f32, 0.5), floor[0].opacity.?, 0.01);
-    var back_overrides: [4]canvas.CanvasRenderOverride = undefined;
-    const back = try view.sampleCanvasRenderAnimations(start_ns + 2000 * std.time.ns_per_ms, &back_overrides);
-    try std.testing.expectApproxEqAbs(@as(f32, 1), back[0].opacity.?, 0.01);
+    try std.testing.expectEqual(highlight_id, mid[0].id);
+    const mid_tx = mid[0].transform.?.tx;
+    try std.testing.expect(mid_tx > 0 and mid_tx < 160);
+    var later_overrides: [4]canvas.CanvasRenderOverride = undefined;
+    const later = try view.sampleCanvasRenderAnimations(start_ns + 1100 * std.time.ns_per_ms, &later_overrides);
+    try std.testing.expect(later[0].transform.?.tx > mid_tx);
 
-    // An unrelated display refresh must NOT reset the pulse phase.
+    // An unrelated display refresh must NOT reset the sweep phase.
     _ = try harness.runtime.emitCanvasWidgetDisplayListWithStoredTokens(1, "canvas");
     try std.testing.expectEqual(@as(usize, 1), view.canvas_render_animation_count);
     try std.testing.expectEqual(start_ns, view.canvasRenderAnimations()[0].start_ns);

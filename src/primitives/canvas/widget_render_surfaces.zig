@@ -517,7 +517,7 @@ pub fn emitAccordionWidgetChrome(builder: *Builder, widget: Widget, tokens: Desi
     // Composed disclosures draw their trigger and surrounding surface in
     // their parent. Keep the accordion's native reveal/semantics behavior
     // without painting a second trigger, divider, or chevron.
-    if (widget.paint_data[6] == -1) return;
+    if (widget_access.widgetDisclosureHasComposedTrigger(widget)) return;
     const frame = widget.frame.normalized();
     if (frame.isEmpty()) return;
 

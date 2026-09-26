@@ -419,10 +419,11 @@ pub fn RuntimeCanvasWidgetDisplay(comptime Runtime: type) type {
         ///   period, so the bright head steps clockwise around the dial
         ///   while every pill fades in place — the register's motion is
         ///   stepped occupancy, not rotation;
-        /// - skeletons: a `.ping_pong` opacity pulse over the fill
-        ///   command (full to `skeleton_pulse_min_opacity` and back, one
-        ///   sweep per `skeleton_pulse_sweep_ms` on the standard curve —
-        ///   the reference placeholder oscillation).
+        /// - skeletons: a `.wrap` translation of the highlight band
+        ///   across the placeholder, one pass per `skeleton_sweep_ms`
+        ///   at a constant speed. Position rather than opacity because
+        ///   the placeholder's own wash spans only six 8-bit values —
+        ///   see `emitSkeletonWidget`.
         /// Arming preserves the existing animation's phase — a refresh
         /// mid-loop (hover, unrelated state) must not snap the arc or
         /// pulse back to its start. When a widget unmounts (or hides)
@@ -512,25 +513,29 @@ pub fn RuntimeCanvasWidgetDisplay(comptime Runtime: type) type {
                             },
                         },
                         .skeleton => {
-                            const command_id = canvas.skeletonWidgetFillCommandId(node.widget.id);
+                            // POSITION, not opacity: the placeholder's
+                            // wash spans barely six 8-bit values, so
+                            // fading it can only ever step six times a
+                            // sweep however fast frames arrive. Sliding
+                            // the highlight moves every pixel through
+                            // the gradient at its own moment, which is
+                            // what reads as continuous motion.
+                            const command_id = canvas.skeletonWidgetHighlightCommandId(node.widget.id);
                             const start_ns = existingCanvasRenderAnimationStartNs(view, command_id) orelse canvasRenderAnimationStartNsForView(view);
-                            // LINEAR, not the house curve: a skeleton's
-                            // wash is a few points of white over a dark
-                            // surface, so the whole sweep crosses only a
-                            // dozen or so 8-bit levels. An eased sweep
-                            // spends its first and last third inside one
-                            // level — the pulse visibly parks, then
-                            // jumps, and reads as a dropped frame rate.
-                            // Spacing the steps evenly is what makes the
-                            // same range look continuous.
+                            // The band is three widget widths wide and
+                            // travels its own width, so the bright
+                            // centre crosses the placeholder once per
+                            // cycle and the wrap happens with the
+                            // shoulders off both edges — nothing snaps.
+                            const travel = @max(1, node.frame.normalized().width);
                             view.replaceCanvasRenderAnimation(.{
                                 .id = command_id,
                                 .start_ns = start_ns,
-                                .duration_ms = skeleton_pulse_sweep_ms,
+                                .duration_ms = skeleton_sweep_ms,
                                 .easing = .linear,
-                                .from_opacity = 1,
-                                .to_opacity = skeleton_pulse_min_opacity,
-                                .loop = .ping_pong,
+                                .from_transform = canvas.Affine.translate(0, 0),
+                                .to_transform = canvas.Affine.translate(travel, 0),
+                                .loop = .wrap,
                             }) catch break;
                             view.replaceCanvasRenderAnimationDirtyBounds(command_id, node.frame) catch {};
                             desired_ids[desired_count] = command_id;
@@ -684,13 +689,10 @@ fn hashAccessibilityTextRange(hasher: *std.hash.Wyhash, range: ?platform.WidgetA
 fn spinnerPeriodMs(tokens: canvas.DesignTokens) u32 {
     return @max(1, tokens.metrics.spinner_period_ms);
 }
-/// One skeleton pulse sweep (full opacity down to the floor); the
-/// ping-pong makes the round trip a 2s period — the reference
-/// placeholder pulse. The curve follows the theme's motion easing.
-const skeleton_pulse_sweep_ms: u32 = 1000;
-/// The pulse floor: the placeholder never fades far enough to read as
-/// empty space.
-const skeleton_pulse_min_opacity: f32 = 0.5;
+/// One pass of the skeleton's travelling highlight. Long enough to read
+/// as a sweep rather than a flash, and linear so the band keeps a
+/// constant speed across the placeholder.
+const skeleton_sweep_ms: u32 = 1400;
 
 /// One blink sweep (fade out or back) — a full cycle is two sweeps.
 const caret_blink_sweep_ms: u32 = 500;

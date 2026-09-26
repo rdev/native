@@ -3329,14 +3329,71 @@ pub fn skeletonWidgetFillCommandId(id: ObjectId) ObjectId {
     return widgetPartId(id, 1);
 }
 
+/// A skeleton is its placeholder fill plus a travelling highlight.
+///
+/// The highlight exists because the obvious animation does not work. A
+/// placeholder is a few points of white over a dark surface, so fading
+/// it between full and half opacity moves the composited pixel across
+/// SIX 8-bit values — the whole sweep, measured. Every pixel steps at
+/// the same instant, so a one-second sweep reads as six frames however
+/// fast the display runs, and no easing or scheduling changes that: the
+/// amplitude simply has nowhere to go.
+///
+/// Sweeping a soft band across instead animates POSITION. Neighbouring
+/// pixels cross the gradient at different moments and the edges are
+/// antialiased, so the motion is continuous at any contrast — which is
+/// what makes it read at the frame rate everything else does.
 fn emitSkeletonWidget(builder: *Builder, widget: Widget, tokens: DesignTokens) Error!void {
     const visual = componentControlVisualTokens(widget, tokens);
+    const radius = controlRadius(widget, visual, tokens.radius.md);
     try builder.fillRoundedRect(.{
         .id = widgetPartId(widget.id, 1),
         .rect = widget.frame,
-        .radius = controlRadius(widget, visual, tokens.radius.md),
+        .radius = radius,
         .fill = colorFill(widgetBackgroundColor(widget, visual.background orelse tokens.colors.surface_subtle)),
     });
+    const frame = widget.frame.normalized();
+    if (frame.isEmpty()) return;
+    const highlight = widgetSkeletonHighlightColor(widget, tokens);
+    if (highlight.a <= 0) return;
+    // The band spans three widget widths so its soft shoulders stay off
+    // screen at both ends of the travel, and it is clipped to the
+    // widget so only the part crossing the placeholder shows.
+    const stops = try builder.allocGradientStops(&.{
+        .{ .offset = 0, .color = colorWithAlpha(highlight, 0) },
+        .{ .offset = 0.5, .color = highlight },
+        .{ .offset = 1, .color = colorWithAlpha(highlight, 0) },
+    });
+    const band = geometry.RectF.init(frame.x - frame.width, frame.y, frame.width * 3, frame.height);
+    try builder.pushClip(.{ .id = widgetPartId(widget.id, 3), .rect = frame, .radius = radius });
+    try builder.fillRect(.{
+        .id = skeletonWidgetHighlightCommandId(widget.id),
+        .rect = band,
+        .fill = .{ .linear_gradient = .{
+            .start = .{ .x = band.x, .y = band.y },
+            .end = .{ .x = band.maxX(), .y = band.y },
+            .stops = stops,
+        } },
+    });
+    try builder.popClip();
+}
+
+/// The sweep's brightest point, scaled from the placeholder's own wash
+/// so a heavier placeholder gets a proportionally brighter band. Twice
+/// the wash puts the peak a clearly visible step above the surface
+/// while still reading as light moving over it rather than as a second
+/// shape laid on top.
+pub fn widgetSkeletonHighlightColor(widget: Widget, tokens: DesignTokens) Color {
+    const visual = componentControlVisualTokens(widget, tokens);
+    const base = widgetBackgroundColor(widget, visual.background orelse tokens.colors.surface_subtle);
+    return Color.rgba(1, 1, 1, @min(1, base.a * 2));
+}
+
+/// The command id of a skeleton's travelling highlight — the target of
+/// the runtime's looping sweep, published so the animation and the
+/// emitter can never drift apart.
+pub fn skeletonWidgetHighlightCommandId(id: ObjectId) ObjectId {
+    return widgetPartId(id, 2);
 }
 
 /// A row's own state wash: hover and selection paint the FULL row band

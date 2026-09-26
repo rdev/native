@@ -21,7 +21,9 @@ const snapTextRange = text_model.snapTextRange;
 /// the platform's own controls do.
 pub fn cursorForWidgetHit(hit: ?WidgetHit) WidgetCursor {
     const target = hit orelse return .arrow;
-    if (target.role == .link and !target.state.disabled) return .pointing_hand;
+    if (target.state.disabled) return .arrow;
+    if (target.cursor) |cursor| return cursor;
+    if (target.role == .link) return .pointing_hand;
     return cursorForWidgetTarget(target.kind, target.state);
 }
 
@@ -31,6 +33,14 @@ pub fn cursorForWidgetHit(hit: ?WidgetHit) WidgetCursor {
 /// arrow over everything else — including sliders, which keep the arrow
 /// at rest AND during a drag on every native platform. The pointing hand
 /// never comes from a kind; it is role-driven (`cursorForWidgetHit`).
+/// The cursor a widget advertises: its authored override first, then the
+/// cursor its kind implies.
+pub fn cursorForWidget(widget: Widget) WidgetCursor {
+    if (widget.state.disabled) return .arrow;
+    if (widget.style.cursor) |cursor| return cursor;
+    return cursorForWidgetTarget(widget.kind, widget.state);
+}
+
 pub fn cursorForWidgetTarget(kind: WidgetKind, state: WidgetState) WidgetCursor {
     if (state.disabled) return .arrow;
     return switch (kind) {
@@ -86,6 +96,9 @@ pub fn widgetKindHitTarget(kind: WidgetKind) bool {
 
 pub fn isHitTarget(widget: Widget) bool {
     if (widget.id == 0 or widget.state.disabled) return false;
+    // A composed disclosure's reveal is a container, not a control.
+    if (widgetDisclosureHasComposedTrigger(widget) and
+        !(widget.semantics.actions.press or widget.semantics.actions.toggle or widget.semantics.actions.drag)) return false;
     if (widget.semantics.actions.press or widget.semantics.actions.toggle or widget.semantics.actions.drag) return true;
     if (widget.window_drag) return true;
     // A chart with hover details opted in is hoverable (the runtime
@@ -191,6 +204,17 @@ pub fn widgetClaimsPress(widget: Widget) bool {
 /// runtime's `canvasWidgetDismissibleSurfaceKind` delegates here and
 /// `defaultSemanticActions` exposes the matching `dismiss` action, so the
 /// set cannot drift. `on_dismiss` handlers only ever fire on these.
+/// A disclosure whose TRIGGER is a sibling the app drew itself: the
+/// accordion widget is then only the retained reveal, so it paints no
+/// header band (`accordionHeaderHeight` returns 0) and — the reason
+/// this predicate is shared rather than open-coded — it must not claim
+/// presses either. An accordion that IS its own trigger toggles when
+/// clicked; a composed one would otherwise collapse the moment the
+/// reader clicked the content it just revealed.
+pub fn widgetDisclosureHasComposedTrigger(widget: Widget) bool {
+    return widget.kind == .accordion and widget.paint_data[6] == -1;
+}
+
 pub fn widgetKindDismissibleSurface(kind: WidgetKind) bool {
     return switch (kind) {
         .dialog,
