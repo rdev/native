@@ -958,6 +958,7 @@ fn widgetLayoutStylesEqual(a: WidgetLayoutStyle, b: WidgetLayoutStyle) bool {
         a.main_alignment == b.main_alignment and
         a.cross_alignment == b.cross_alignment and
         a.clip_content == b.clip_content and
+        a.vertical == b.vertical and
         a.columns == b.columns and
         a.virtualized == b.virtualized and
         a.virtual_item_extent == b.virtual_item_extent and
@@ -968,6 +969,7 @@ fn widgetLayoutStylesEqual(a: WidgetLayoutStyle, b: WidgetLayoutStyle) bool {
         a.virtual_anchor_extent == b.virtual_anchor_extent and
         a.virtual_total_extent == b.virtual_total_extent and
         a.modal_edge == b.modal_edge and
+        a.modal_top_fraction == b.modal_top_fraction and
         a.modal_height_fraction == b.modal_height_fraction and
         sizesEqual(a.min_size, b.min_size) and
         sizesEqual(a.max_size, b.max_size);

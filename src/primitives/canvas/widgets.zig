@@ -455,6 +455,12 @@ pub const WidgetLayoutStyle = struct {
     main_alignment: WidgetMainAlignment = .start,
     cross_alignment: WidgetCrossAlignment = .stretch,
     clip_content: bool = false,
+    /// A FLUSH button group that stacks DOWN instead of across: children
+    /// flow on the vertical axis and the segment stamp caps the top and
+    /// bottom corners rather than the leading and trailing ones. Only
+    /// `button_group` reads it; every other kind picks its axis from its
+    /// own kind (`row` vs `column`).
+    vertical: bool = false,
     columns: usize = 0,
     virtualized: bool = false,
     virtual_item_extent: f32 = 0,
@@ -499,6 +505,13 @@ pub const WidgetLayoutStyle = struct {
     /// surface positioned against its parent (see `WidgetAnchor`).
     anchor: ?WidgetAnchor = null,
     modal_edge: WidgetModalEdge = .automatic,
+    /// A centered modal (`dialog`) pinned to a FIXED distance down the
+    /// root instead of vertically centered, as a fraction of the root
+    /// height. The Spotlight shape: the surface keeps its top edge while
+    /// its content grows and shrinks below, so a palette that filters
+    /// down to two results does not crawl up the window. 0 keeps the
+    /// centered placement. Ignored by edge-pinned drawers and sheets.
+    modal_top_fraction: f32 = 0,
     /// Fraction of the root height for top/bottom panel variants. Zero
     /// preserves the content/explicit-height sizing contract.
     modal_height_fraction: f32 = 0,
@@ -1193,6 +1206,12 @@ pub const Widget = struct {
     /// authored state lives, so it never participates in retention,
     /// serialization, or equality decisions.
     group_segment: WidgetGroupSegment = .none,
+    /// The axis its flush group stacks on, stamped beside
+    /// `group_segment` by both render walks from the group's
+    /// `WidgetLayoutStyle.vertical`. A segment paints the same way on
+    /// either axis; only WHICH pair of corners it keeps (and which
+    /// border band it drops into its neighbor) changes.
+    group_vertical: bool = false,
     children: []const Widget = &.{},
 
     pub fn sliderHasSourceMetadata(self: Widget) bool {

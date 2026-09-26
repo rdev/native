@@ -177,6 +177,13 @@ pub fn emitWidgetTree(builder: *Builder, widget: Widget, tokens: DesignTokens) E
     const saved_policy = builder.text_run_policy;
     builder.text_run_policy = tokens.text_run_policy;
     defer builder.text_run_policy = saved_policy;
+    // Kit painters re-enter this entry point to emit a nested widget (a
+    // field's native editor, an icon inside a chip), so the viewport must
+    // be SAVED and restored rather than assigned: a nested call that left
+    // its own little frame behind sized every later modal's scrim to that
+    // widget instead of the window, and the dim silently vanished.
+    const parent_scrim_viewport = scrim_viewport;
+    defer scrim_viewport = parent_scrim_viewport;
     scrim_viewport = widget.frame.normalized();
     tree_visible_bounds = widget.frame.normalized();
     defer tree_visible_bounds = null;
@@ -251,7 +258,7 @@ fn emitWidgetLayoutEscapingMotion(builder: *Builder, layout: anytype, index: usi
     const wrap_ancestor_transform = !affinesEqual(ancestor_transform, Affine.identity());
     const inverse_ancestor_transform = if (wrap_ancestor_transform) ancestor_transform.inverse() orelse return error.InvalidTransform else Affine.identity();
     if (wrap_ancestor_transform) try builder.transform(ancestor_transform);
-    try emitWidgetLayoutNode(builder, layout, index, tokens, state, .none);
+    try emitWidgetLayoutNode(builder, layout, index, tokens, state, .none, false);
     if (wrap_ancestor_transform) try builder.transform(inverse_ancestor_transform);
 }
 
@@ -289,7 +296,7 @@ fn emitWidgetLayoutDragPreview(builder: *Builder, layout: anytype, tokens: Desig
     const saved_copy = painting_drag_copy;
     painting_drag_copy = true;
     defer painting_drag_copy = saved_copy;
-    try emitWidgetLayoutNode(builder, layout, source_index, tokens, preview_state, .none);
+    try emitWidgetLayoutNode(builder, layout, source_index, tokens, preview_state, .none, false);
     if (wrap_ancestor_transform) try builder.transform(inverse_ancestor_transform);
     try builder.transform(Affine.translate(-translation.tx, -translation.ty));
 }
@@ -482,7 +489,7 @@ fn emitWidgetLayoutWindowSurfaces(builder: *Builder, layout: anytype, tokens: De
     if (activePaintWalk(layout)) |plan| {
         var current = plan.firstSurface();
         while (current) |index| {
-            try emitWidgetLayoutNode(builder, layout, index, tokens, state, .none);
+            try emitWidgetLayoutNode(builder, layout, index, tokens, state, .none, false);
             current = plan.facts(index).next_surface;
         }
         return;
@@ -498,7 +505,7 @@ fn emitWidgetLayoutWindowSurfaces(builder: *Builder, layout: anytype, tokens: De
         // subtree stays down with its anchor — concealed content is
         // laid out but must not paint window-level chrome.
         if (widget_tree.isWidgetConcealedByDisclosure(layout, index)) continue;
-        try emitWidgetLayoutNode(builder, layout, index, tokens, state, .none);
+        try emitWidgetLayoutNode(builder, layout, index, tokens, state, .none, false);
     }
 }
 
@@ -792,6 +799,7 @@ fn emitButtonGroupWidget(builder: *Builder, widget: Widget, tokens: DesignTokens
         const child_index = nextWidgetPaintChild(widget.children, tokens, previous) orelse break;
         var child = widget.children[child_index];
         child.group_segment = buttonGroupChildSegment(widget.children, child_index);
+        child.group_vertical = widget.layout.vertical;
         try emitWidgetDepth(builder, child, tokens, depth + 1);
         previous = .{ .layer = widgetPaintLayer(child, tokens), .index = child_index };
     }
@@ -806,11 +814,12 @@ fn emitWidgetLayoutChildren(
     state: WidgetRenderState,
 ) Error!void {
     if (activePaintWalk(layout)) |plan| {
+        const segment_vertical = if (parent_index) |index| layout.nodes[index].widget.kind == .button_group and layout.nodes[index].widget.layout.vertical else false;
         var current = if (parent_index) |index| plan.facts(index).first_child else plan.firstRoot();
         while (current) |index| {
             const facts = plan.facts(index);
             if (!plan.activeLane(index, painting_drag_copy).suppress_flow)
-                try emitWidgetLayoutNode(builder, layout, index, tokens, state, facts.segment);
+                try emitWidgetLayoutNode(builder, layout, index, tokens, state, facts.segment, segment_vertical);
             current = facts.next_sibling;
         }
         return;
@@ -836,7 +845,8 @@ fn emitWidgetLayoutChildren(
                 layoutButtonGroupSegment(layout, index, child_index)
             else
                 widget_model.WidgetGroupSegment.none;
-            try emitWidgetLayoutNode(builder, layout, child_index, tokens, state, segment);
+            const segment_vertical = if (group_index) |index| layout.nodes[index].widget.layout.vertical else false;
+            try emitWidgetLayoutNode(builder, layout, child_index, tokens, state, segment, segment_vertical);
         }
         previous = .{ .layer = widgetPaintLayer(layout.nodes[child_index].widget, tokens), .index = child_index };
     }
@@ -864,6 +874,7 @@ fn emitWidgetLayoutNode(
     tokens: DesignTokens,
     state: WidgetRenderState,
     segment: widget_model.WidgetGroupSegment,
+    segment_vertical: bool,
 ) Error!void {
     const node = layout.nodes[node_index];
     const planned: ?paint_walk_policy.Lane = if (activePaintWalk(layout)) |plan| plan.activeLane(node_index, painting_drag_copy) else null;
@@ -882,6 +893,7 @@ fn emitWidgetLayoutNode(
         if (state.rendering_drag_preview and widget.id != 0) widget.id = dragPreviewWidgetId(widget.id);
     } else widget = widgetWithRenderState(widget, state);
     widget.group_segment = segment;
+    widget.group_vertical = segment_vertical;
     const opacity = if (planned) |facts| facts.opacity else widgetOpacity(widget);
     if (opacity <= 0) return;
     const layout_motion = if (planned) |facts| facts.motion else state.layoutMotionOffset(widget.id);
