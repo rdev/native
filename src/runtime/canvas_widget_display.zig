@@ -177,7 +177,8 @@ pub fn RuntimeCanvasWidgetDisplay(comptime Runtime: type) type {
             if (animation.id == 0 or animation.travel <= 0) return;
 
             const motion = self.views[view_index].widget_tokens.motion;
-            const duration_ms = motion.durationMs(.fast);
+            // Match the Web and SwiftUI switch's 100 ms thumb transition.
+            const duration_ms = motion.durationMs(.normal);
             if (duration_ms == 0) {
                 self.views[view_index].removeCanvasRenderAnimation(canvas.toggleWidgetKnobCommandId(animation.id));
                 if (animation.custom_thumb) {
@@ -193,7 +194,7 @@ pub fn RuntimeCanvasWidgetDisplay(comptime Runtime: type) type {
                 const render_animation = motion.animation(.{
                     .id = canvas.widgetPartId(animation.id, 3 + part_index),
                     .start_ns = canvasRenderAnimationStartNsForView(&self.views[view_index]),
-                    .duration = .fast,
+                    .duration = .normal,
                     .from_transform = canvas.Affine.translate(from_tx, 0),
                     .to_transform = canvas.Affine.identity(),
                 });

@@ -403,7 +403,7 @@ test "runtime batches pointer widget display list refreshes" {
     try std.testing.expectEqual(@as(usize, 1), animations.len);
     try std.testing.expectEqual(canvas.toggleWidgetKnobCommandId(4), animations[0].id);
     try std.testing.expectEqual(@as(u64, 110), animations[0].start_ns);
-    try std.testing.expectEqual(harness.runtime.views[0].widget_tokens.motion.durationMs(.fast), animations[0].duration_ms);
+    try std.testing.expectEqual(harness.runtime.views[0].widget_tokens.motion.durationMs(.normal), animations[0].duration_ms);
     try std.testing.expectApproxEqAbs(-travel, animations[0].from_transform.?.tx, 0.001);
     try std.testing.expectEqual(canvas.Affine.identity(), animations[0].to_transform.?);
     const expected_toggle_dirty = runtimeViewCanvasWidgetDirtyBounds(&harness.runtime.views[0], 1, retained.nodes[1].widget.frame).?;
