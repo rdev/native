@@ -88,6 +88,17 @@ pub fn RuntimeAutomationWidgetDispatch(comptime Runtime: type) type {
                 .x = point.x,
                 .y = point.y,
             } });
+            // A visual automation hover represents the settled state after
+            // the pointer has dwelled on the target. Native hosts normally
+            // advance an armed tooltip through display-link frame timestamps,
+            // but screenshots can run while the window is occluded and no
+            // display-link callback arrives. Promote exactly to the recorded
+            // deadline so delayed tooltips and hover cards remain visually
+            // testable without changing their production delay semantics.
+            const tooltip_deadline_ns = self.views[view_index].canvas_tooltip_deadline_ns;
+            if (tooltip_deadline_ns != 0) {
+                try self.advanceCanvasTooltipIntentForFrame(view_index, tooltip_deadline_ns);
+            }
         }
 
         /// Hover is meaningful for plain layout nodes too: chart bars and
