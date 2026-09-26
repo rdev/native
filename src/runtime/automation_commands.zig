@@ -10,6 +10,7 @@ pub const AutomationNativeCommand = struct {
 
 pub const AutomationWidgetActionKind = enum {
     focus,
+    hover,
     press,
     toggle,
     increment,
@@ -381,6 +382,7 @@ fn takeAutomationToken(value: []const u8) ?AutomationToken {
 
 fn automationWidgetActionKindFromString(value: []const u8) ?AutomationWidgetActionKind {
     if (std.ascii.eqlIgnoreCase(value, "focus")) return .focus;
+    if (std.ascii.eqlIgnoreCase(value, "hover")) return .hover;
     if (std.ascii.eqlIgnoreCase(value, "press")) return .press;
     if (std.ascii.eqlIgnoreCase(value, "toggle")) return .toggle;
     if (std.ascii.eqlIgnoreCase(value, "increment")) return .increment;
@@ -400,6 +402,7 @@ fn automationWidgetActionKindFromString(value: []const u8) ?AutomationWidgetActi
 pub fn automationWidgetActionSupported(actions: canvas.WidgetActions, action: AutomationWidgetActionKind) bool {
     return switch (action) {
         .focus => actions.focus,
+        .hover => true,
         .press => actions.press,
         .toggle => actions.toggle,
         .increment => actions.increment,
