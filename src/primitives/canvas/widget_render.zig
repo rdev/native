@@ -1517,6 +1517,18 @@ fn widgetContentClipRadius(widget: Widget, tokens: DesignTokens) Radius {
         };
     }
     if (!widget.layout.clip_content) return .{};
+    // The bubble clips at its own capsule arc so wide content (an
+    // image child, a full-bleed row) shears along the chrome's
+    // corners instead of the generic surface radius. Its four corners
+    // differ, so no single authored scalar can stand in for them.
+    if (widget.kind == .bubble) return widget_render_surfaces.bubbleWidgetRadius(widget, tokens);
+    // Authored clipping belongs to the authored surface geometry: the
+    // curve the chrome paints is the curve its children are cut by.
+    // This outranks the per-kind default, which only describes the
+    // chrome a surface draws when the author names no radius — a
+    // popover styled at 5pt would otherwise have its content shaved by
+    // the 12pt arc of a surface nothing ever painted.
+    if (widget.style.radius) |radius| return Radius.all(@max(0, radius));
     return switch (widget.kind) {
         // The bubble clips at its own capsule arc so wide content (an
         // image child, a full-bleed row) shears along the chrome's
@@ -1534,11 +1546,7 @@ fn widgetContentClipRadius(widget: Widget, tokens: DesignTokens) Radius {
         .sheet => controlRadius(widget, surfaceControlVisualTokens(widget, tokens), tokens.radius.lg),
         .popover => controlRadius(widget, surfaceControlVisualTokens(widget, tokens), tokens.radius.xl),
         .tooltip => controlRadius(widget, surfaceControlVisualTokens(widget, tokens), tokens.radius.md),
-        // Authored clipping belongs to the authored surface geometry. A
-        // generic row/column with a custom radius must clip its children to
-        // the same curve its chrome paints; falling back to a square clip
-        // exposes the children's rectangular corners through the surface.
-        else => if (widget.style.radius) |radius| Radius.all(@max(0, radius)) else .{},
+        else => .{},
     };
 }
 
