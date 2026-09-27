@@ -362,6 +362,12 @@ fn writeCanvasGpuCommandJson(command: CanvasGpuCommand, writer: anytype) !void {
     try writeCanvasGpuEffectJson(command.effect, writer);
     try writer.writeAll(",\"clip\":");
     try writeOptionalRectJson(command.clip, writer);
+    if (radiusIsRounded(command.clip_radius)) {
+        try writer.print(",\"clipRadius\":[{d},{d},{d},{d}]", .{
+            command.clip_radius.top_left,     command.clip_radius.top_right,
+            command.clip_radius.bottom_right, command.clip_radius.bottom_left,
+        });
+    }
     try writer.print(",\"opacity\":{d},\"transform\":", .{command.opacity});
     try writeAffineJson(command.transform, writer);
     try writer.writeAll(",\"usesPathGeometry\":");
@@ -988,7 +994,7 @@ fn writeGlyphsJson(glyphs: []const Glyph, writer: anytype) !void {
 }
 
 // ---------------------------------------------------------------------------
-// Compact binary gpu-surface packet encoding (wire format v6).
+// Compact binary gpu-surface packet encoding (wire format v7).
 //
 // The version this comment names, the `binary_packet_version` constant
 // below, and both host decoders' spec comments (appkit_host.m and the
@@ -1042,6 +1048,12 @@ fn writeGlyphsJson(glyphs: []const Glyph, writer: anytype) !void {
 //   | image_action_count u32 | actions { kind u8 (0 upload / 1 retain /
 //       2 evict), key_image_id u64, key_fingerprint u64,
 //       image_index u32 (0xFFFFFFFF = none) }
+// v7 (from v6): a command's clip section carries its CORNER RADII. The
+// planner only attaches them where the command's own geometry reaches a
+// rounded clip's corner, so the presence byte reads 0 for almost every
+// command and a host that clips to the rectangle there is exact. A host
+// that ignores the radii draws square corners on clipped content.
+//
 //   | load/clear: command_count u32 | commands { key u64, command (see
 //       writeCanvasGpuCommandBinary) }
 //   | patch: evict_count u32 | evict keys u64[]
@@ -1049,7 +1061,7 @@ fn writeGlyphsJson(glyphs: []const Glyph, writer: anytype) !void {
 //     | order_count u32 | order keys u64[]
 
 pub const binary_packet_magic = "NSGP";
-pub const binary_packet_version: u8 = 6;
+pub const binary_packet_version: u8 = 7;
 
 /// Most dirty rects a patch header carries: enough to keep far-apart
 /// small changes (a switch plus a status line) from fusing into a
@@ -1272,6 +1284,11 @@ pub fn writeCanvasGpuPacketBinary(packet: CanvasGpuPacket, writer: anytype) !voi
     }
 }
 
+fn radiusIsRounded(radius: drawing_model.Radius) bool {
+    return radius.top_left > 0 or radius.top_right > 0 or
+        radius.bottom_right > 0 or radius.bottom_left > 0;
+}
+
 const binary_command_flag_id: u8 = 0x01;
 const binary_command_flag_clip: u8 = 0x02;
 const binary_command_flag_transform: u8 = 0x04;
@@ -1283,7 +1300,8 @@ const binary_command_flag_effect: u8 = 0x80;
 
 /// Command layout: kind u8 | flags u8 | bounds f32[4] | opacity f32
 /// | stroke_width f32 | cap u8 (0 butt / 1 round) | [id u64]
-/// | [clip f32[4]] | [transform f32[6]]
+/// | [clip f32[4] | clip_rounded u8 | [clip_radius f32[4]]]
+/// | [transform f32[6]]
 /// | [shape] | [paint] | [image] | [text] | [effect] — each optional
 /// section present exactly when its flag bit is set. The identity
 /// transform is elided (the flag doubles as "non-identity").
@@ -1310,7 +1328,21 @@ fn writeCanvasGpuCommandBinary(command: CanvasGpuCommand, writer: anytype) !void
         .round => 1,
     });
     if (command.id) |id| try writer.writeInt(u64, id, .little);
-    if (command.clip) |clip| try writeBinaryRect(clip, writer);
+    if (command.clip) |clip| {
+        try writeBinaryRect(clip, writer);
+        // v7: the clip payload carries its corner radii behind a
+        // presence byte. Riding inside the clip section rather than a
+        // new flag bit keeps the command flags byte full at eight and
+        // costs one byte on the overwhelmingly common square clip.
+        const rounded = radiusIsRounded(command.clip_radius);
+        try writer.writeByte(if (rounded) 1 else 0);
+        if (rounded) {
+            try writeBinaryF32(command.clip_radius.top_left, writer);
+            try writeBinaryF32(command.clip_radius.top_right, writer);
+            try writeBinaryF32(command.clip_radius.bottom_right, writer);
+            try writeBinaryF32(command.clip_radius.bottom_left, writer);
+        }
+    }
     if (!identity_transform) try writeBinaryAffine(command.transform, writer);
     if (command.shape != .none) try writeBinaryShape(command.shape, writer);
     if (command.paint != .none) try writeBinaryPaint(command.paint, writer);

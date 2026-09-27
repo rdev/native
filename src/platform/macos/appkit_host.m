@@ -1790,6 +1790,19 @@ static NSBezierPath *NativeSdkPacketRoundedRectPath(NSRect rect, id radiusValue)
     return path;
 }
 
+/* Apply a command's clip to the current graphics state. v7 commands may
+ * carry corner radii, which the engine attaches only where the command's
+ * own geometry reaches a rounded clip's corner; everything else clips to
+ * the rectangle exactly as before. */
+static void NativeSdkPacketApplyCommandClip(NSDictionary *command, NSRect clipRect) {
+    NSArray *radius = NativeSdkPacketArray(command[@"clipRadius"], 4);
+    if (radius) {
+        [NativeSdkPacketRoundedRectPath(clipRect, radius) addClip];
+        return;
+    }
+    [NSBezierPath clipRect:clipRect];
+}
+
 static NSBezierPath *NativeSdkPacketShapePath(NSDictionary *shape) {
     if (!shape) return nil;
     NSString *kind = [shape[@"kind"] isKindOfClass:[NSString class]] ? shape[@"kind"] : @"";
@@ -3183,7 +3196,7 @@ static BOOL NativeSdkPacketDrawCommand(NSDictionary *command, CGContextRef conte
     }
     if ([clip isKindOfClass:[NSArray class]]) {
         NSRect commandClip = NativeSdkPacketRect(clip);
-        [NSBezierPath clipRect:commandClip];
+        NativeSdkPacketApplyCommandClip(command, commandClip);
         effectiveClip = hasEffectiveClip ? NSIntersectionRect(effectiveClip, commandClip) : commandClip;
         hasEffectiveClip = YES;
     }
@@ -3263,9 +3276,10 @@ static BOOL NativeSdkGpuCompositeEnabled(void) {
 /* A command is raster-cacheable when its painted output is a pure
  * function of the command itself: no backdrop reads (blur samples the
  * pixels beneath it) and no animated transform (applied per frame via
- * the CTM). A command CLIP is a plain rect carried by the command, so
- * clipped output is still a pure function of the command — the fill
- * applies the clip and the raster extent shrinks to bounds∩clip.
+ * the CTM). A command CLIP — its rect and, since v7, its corner radii —
+ * is carried by the command, so clipped output is still a pure function
+ * of the command: the fill applies the clip and the raster extent
+ * shrinks to bounds∩clip.
  * (Clipped panel/scroll content dominates content-heavy views; leaving
  * it out forced a full CoreText re-raster of every clipped run on any
  * wide dirty rect.) A drawn image (fit, sampling, corner mask) is a
@@ -3375,6 +3389,10 @@ static BOOL NativeSdkPacketRetargetRasterForTranslation(NativeSdkPacketCommandRa
     if (!NSContainsRect(surface, oldPadded) || !NSContainsRect(surface, newPadded)) return NO;
     NSArray *clipArray = NativeSdkPacketArray(command[@"clip"], 4);
     if (command[@"clip"] && !clipArray) return NO;
+    /* A rounded clip is a mask fixed in VIEW space: the same content
+     * shifted sideways meets a different part of the corner, so the old
+     * raster is not the new one translated. */
+    if (command[@"clipRadius"]) return NO;
     if (clipArray) {
         NSRect clip = CGRectStandardize(NativeSdkPacketRect(clipArray));
         if (!NSContainsRect(clip, oldPadded) || !NSContainsRect(clip, newPadded)) return NO;
@@ -3403,7 +3421,7 @@ static NSRect NativeSdkPacketAlignRectToPixels(NSRect rect, CGFloat scale, NSUIn
 }
 
 /* ---------------------------------------------------------------------------
- * Compact binary gpu-surface packet decoding (wire format v6).
+ * Compact binary gpu-surface packet decoding (wire format v7).
  *
  * Little-endian, length-prefixed, mirror of the engine's binary packet
  * encoder (serialization.zig, `writeCanvasGpuPacketBinary` and the patch
@@ -3418,7 +3436,10 @@ static NSRect NativeSdkPacketAlignRectToPixels(NSRect rect, CGFloat scale, NSUIn
  * keyed upserts + the full draw-order vector) against the view's retained
  * command dictionary; v3 added the flag-gated dirty rect list after the
  * scissor; v4 added the per-command stroke end-cap code after
- * stroke_width; v5 added compact positioned glyph runs after text UTF-8.
+ * stroke_width; v5 added compact positioned glyph runs after text UTF-8;
+ * v7 added the clip section's corner radii behind a presence byte (the
+ * engine attaches them only where a command's own geometry reaches a
+ * rounded clip's corner, so the byte reads 0 for almost every command).
  * The version this comment names and the encoder's spec
  * comment must agree with `binary_packet_version` (serialization.zig);
  * the `test-wire-format-version-prose` build check pins all three.
@@ -3805,6 +3826,11 @@ static NSDictionary *NativeSdkBinaryReadCommand(NativeSdkBinaryPacketReader *rea
         NSArray *clip = NativeSdkBinaryReadF32Array(reader, 4);
         if (!clip) return nil;
         command[@"clip"] = clip;
+        if (NativeSdkBinaryReadU8(reader)) {
+            NSArray *clipRadius = NativeSdkBinaryReadF32Array(reader, 4);
+            if (!clipRadius) return nil;
+            command[@"clipRadius"] = clipRadius;
+        }
     }
     if (flags & NativeSdkBinaryCommandFlagTransform) {
         NSArray *transform = NativeSdkBinaryReadF32Array(reader, 6);
@@ -4907,7 +4933,10 @@ static BOOL NativeSdkCompositeBlurWriteRegion(NSDictionary *command, CGFloat sca
                 NSRect rect = CGRectStandardize(NativeSdkPacketRect(shape[@"rect"]));
                 if (flatTransform) rect = NSOffsetRect(rect, NativeSdkPacketNumber(flatTransform[4], 0), NativeSdkPacketNumber(flatTransform[5], 0));
                 NSArray *clipArray = NativeSdkPacketArray(command[@"clip"], 4);
-                BOOL clipUsable = command[@"clip"] == nil || clipArray != nil;
+                /* The solid-quad fast path can only honor a RECTANGULAR
+                 * clip. A command carrying corner radii falls through to
+                 * the CG raster below, which masks them. */
+                BOOL clipUsable = (command[@"clip"] == nil || clipArray != nil) && command[@"clipRadius"] == nil;
                 if (clipArray) rect = NSIntersectionRect(rect, CGRectStandardize(NativeSdkPacketRect(clipArray)));
                 CGFloat pxMinX = NSMinX(rect) * scale;
                 CGFloat pxMinY = NSMinY(rect) * scale;
@@ -5489,7 +5518,7 @@ static BOOL NativeSdkCompositeBlurWriteRegion(NSDictionary *command, CGFloat sca
     [NSGraphicsContext setCurrentContext:graphics];
     CGFloat opacity = fmax(0.0, fmin(1.0, NativeSdkPacketNumber(command[@"opacity"], 1)));
     if (hasCommandClip) {
-        [NSBezierPath clipRect:commandClip];
+        NativeSdkPacketApplyCommandClip(command, commandClip);
     }
     BOOL ok = NativeSdkPacketApplyTransform(command[@"transform"]);
     if (ok) ok = NativeSdkPacketDrawCommandBody(command, kind, opacity, bitmap, scale, hasCommandClip, commandClip, self.canvasImageCache);
