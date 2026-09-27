@@ -1405,7 +1405,18 @@ pub fn build(b: *std.Build) void {
         .{ .path = "src/primitives/canvas/serialization.zig", .pattern = "Compact binary gpu-surface packet encoding (wire format v7)." },
         .{ .path = "src/platform/macos/appkit_host.m", .pattern = "Compact binary gpu-surface packet decoding (wire format v7)." },
         .{ .path = "src/platform/windows/gpu_surface_renderer.cpp", .pattern = "Compact binary gpu-surface packet decoding (wire format v7)." },
+        // The decoders' version GATES, not just their prose: the v7 bump
+        // once moved every comment but left the AppKit gate at 6, so macOS
+        // refused every binary packet and silently rendered on the CPU.
+        .{ .path = "src/platform/macos/appkit_host.m", .pattern = "if (version != 7) return nil;" },
+        .{ .path = "src/platform/windows/gpu_surface_renderer.cpp", .pattern = "constexpr uint8_t kPacketVersion = 7;" },
     });
+    if (host_target.result.os.tag == .macos) {
+        const scroll_host_tests = b.addSystemCommand(&.{ "bash", b.pathFromRoot("scripts/test-macos-scroll-host.sh") });
+        const scroll_host_step = b.step("test-macos-scroll-host", "Exercise AppKit tracking delivery and retained scroll rasters");
+        scroll_host_step.dependOn(&scroll_host_tests.step);
+        test_step.dependOn(&scroll_host_tests.step);
+    }
     addFileContainsCheckStep(b, file_contains_checker, test_step, "test-windows-gpu-packet-presenter", "Verify Windows uses retained Direct2D packets with recovery, bounded resources, and dirty-region pixel fallback", &.{
         .{ .path = "src/platform/windows/root.zig", .pattern = ".present_gpu_surface_packet_binary_fn = presentGpuSurfacePacketBinary" },
         .{ .path = "src/platform/windows/root.zig", .pattern = ".backend = if (event.gpu_backend == 1) .direct2d else .software" },
