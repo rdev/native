@@ -3276,12 +3276,12 @@ fn bubbleThreadWidthCap(child: Widget, available: f32, value: f32) f32 {
     return @min(value, @max(available * bubble_max_width_fraction, nonNegative(child.layout.min_size.width)));
 }
 
-/// Controls whose web/SwiftUI contract is `fit-content` keep their
-/// intrinsic width when placed directly in a column. A column's default
-/// stretch alignment is useful for fields and structural surfaces, but it
-/// must not silently turn a button, toggle, attached group, or pill tab
-/// strip into a full-width band. Authors can still request a definite width
-/// through the ordinary frame channel.
+/// Under a theme that sets `controls.compact_controls_hug_columns`, controls
+/// whose contract is `fit-content` keep their intrinsic width when placed
+/// directly in a column. A column's default stretch alignment suits fields
+/// and structural surfaces, but such a theme does not want a button,
+/// toggle, attached group, or pill tab strip turned into a full-width band.
+/// Authors can still request a definite width through the frame channel.
 fn compactControlHugsColumn(widget: Widget, axis: LayoutAxis) bool {
     // `frame.width` is also where retained layout writes the resolved
     // geometry. Looking at it here makes an intrinsic control hug on the
@@ -3341,7 +3341,7 @@ fn preferredCrossExtent(widget: Widget, axis: LayoutAxis, available: f32, alignm
     // `frame`: a retained frame contains last pass's assigned width even
     // when the author never declared one. Definite authored widths opt out
     // in `compactControlHugsColumn` through `max_size.width` above.
-    if (compactControlHugsColumn(widget, axis)) {
+    if (tokens.controls.compact_controls_hug_columns and compactControlHugsColumn(widget, axis)) {
         return @max(min_value, boundedByMax(@min(available, intrinsicCrossExtent(widget, axis, tokens)), max_value));
     }
     if (value > 0) return @max(min_value, boundedByMax(value, max_value));

@@ -1195,6 +1195,11 @@ pub const ControlTokens = struct {
     /// feedback turns it off: its rows and tabs author any hover they
     /// have, and an authored background then holds through every state.
     container_feedback: bool = true,
+    /// Whether buttons, toggles, attached groups, segmented controls, and
+    /// tab strips in a column keep their intrinsic width instead of
+    /// stretching across it (CSS `fit-content`). Off by default: a column
+    /// stretches its children. A definite authored width wins either way.
+    compact_controls_hug_columns: bool = false,
     /// The tabs LIST container (the house tab-strip treatment): the muted rounded
     /// wash the `segmented_control` triggers sit on.
     tabs: ControlVisualTokens = .{},
