@@ -1150,16 +1150,16 @@ fn layoutMemoKey(widget: Widget, extra: u32) ?u64 {
     if (layout_memo_depth == 0 or widget.id == 0) return null;
     var hasher = std.hash.Wyhash.init(widget.id);
     const fields = [_]u64{
-        @intFromPtr(widget.children.ptr),       widget.children.len,
-        @intFromPtr(widget.text.ptr),           widget.text.len,
-        @intFromPtr(widget.spans.ptr),          widget.spans.len,
-        @intFromEnum(widget.kind),              extra,
+        @intFromPtr(widget.children.ptr), widget.children.len,
+        @intFromPtr(widget.text.ptr),     widget.text.len,
+        @intFromPtr(widget.spans.ptr),    widget.spans.len,
+        @intFromEnum(widget.kind),        extra,
     };
     hasher.update(std.mem.asBytes(&fields));
     const floats = [_]f32{
-        widget.frame.x,                     widget.frame.y,                      widget.frame.width,                  widget.frame.height,
-        widget.layout.padding.top,          widget.layout.padding.right,         widget.layout.padding.bottom,        widget.layout.padding.left,
-        widget.layout.gap,                  widget.layout.min_size.width,        widget.layout.min_size.height,       widget.layout.max_size.width,
+        widget.frame.x,                widget.frame.y,               widget.frame.width,            widget.frame.height,
+        widget.layout.padding.top,     widget.layout.padding.right,  widget.layout.padding.bottom,  widget.layout.padding.left,
+        widget.layout.gap,             widget.layout.min_size.width, widget.layout.min_size.height, widget.layout.max_size.width,
         widget.layout.max_size.height,
     };
     hasher.update(std.mem.asBytes(&floats));
