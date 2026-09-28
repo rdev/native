@@ -42,7 +42,10 @@ pub const max_chart_points_per_series: usize = 256;
 /// anyway. A filled line series costs at most `2n + 3` elements
 /// (polyline + closed baseline polygon), so the budget holds ~7 maximal
 /// filled series — or dozens of sparkline-sized ones — per frame.
-pub const max_chart_path_elements_per_frame: usize = 8192;
+/// Native desktop apps raise it for pro-app density (dense waveforms and
+/// lanes). Wasm keeps 8192, and so do test builds: a `Builder` stores
+/// these inline, and tests keep several builders on one stack frame.
+pub const max_chart_path_elements_per_frame: usize = if (@import("builtin").target.cpu.arch.isWasm() or @import("builtin").is_test) 8192 else 32768;
 
 /// Byte budget for the display-list builder's own formatted tick/tooltip
 /// label store (`Builder.allocChartLabelBytes` — builder-owned like the
