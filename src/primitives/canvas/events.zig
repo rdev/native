@@ -1692,9 +1692,7 @@ fn sliderHasSourceMetadata(widget: Widget) bool {
 }
 
 fn sliderRangeStep(widget: Widget) f32 {
-    return if (std.math.isFinite(widget.sliderStep()) and widget.sliderStep() > 0) widget.sliderStep()
-    else if (sliderHasSourceMetadata(widget)) 1
-    else 0;
+    return if (std.math.isFinite(widget.sliderStep()) and widget.sliderStep() > 0) widget.sliderStep() else if (sliderHasSourceMetadata(widget)) 1 else 0;
 }
 
 pub fn sliderSourceValue(widget: Widget, fraction: f32) f32 {
@@ -1736,12 +1734,8 @@ pub fn widgetSliderKeyboardValue(widget: Widget, keyboard: WidgetKeyboardEvent) 
     if (std.ascii.eqlIgnoreCase(keyboard.key, "home")) return sliderNormalizedFraction(widget, minimum);
     if (std.ascii.eqlIgnoreCase(keyboard.key, "end")) return sliderNormalizedFraction(widget, maximum);
     const horizontal = widget.sliderOrientation() == .horizontal;
-    const increase_physical = if (horizontal and std.ascii.eqlIgnoreCase(keyboard.key, "arrowright")) true
-        else if (!horizontal and std.ascii.eqlIgnoreCase(keyboard.key, "arrowup")) true
-        else false;
-    const decrease_physical = if (horizontal and std.ascii.eqlIgnoreCase(keyboard.key, "arrowleft")) true
-        else if (!horizontal and std.ascii.eqlIgnoreCase(keyboard.key, "arrowdown")) true
-        else false;
+    const increase_physical = if (horizontal and std.ascii.eqlIgnoreCase(keyboard.key, "arrowright")) true else if (!horizontal and std.ascii.eqlIgnoreCase(keyboard.key, "arrowup")) true else false;
+    const decrease_physical = if (horizontal and std.ascii.eqlIgnoreCase(keyboard.key, "arrowleft")) true else if (!horizontal and std.ascii.eqlIgnoreCase(keyboard.key, "arrowdown")) true else false;
     if (!increase_physical and !decrease_physical) return null;
     // Native sliders with no ProUI metadata use the historical continuous
     // keyboard increment; an explicit positive step remains source-space.

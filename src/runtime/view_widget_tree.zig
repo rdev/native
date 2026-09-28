@@ -1656,11 +1656,10 @@ pub fn RuntimeViewCanvasWidgetTree(comptime RuntimeView: type) type {
                             .increment => physical_decrease,
                             .decrement => physical_increase,
                         }
-                    else
-                        switch (direction) {
-                            .increment => physical_increase,
-                            .decrement => physical_decrease,
-                        };
+                    else switch (direction) {
+                        .increment => physical_increase,
+                        .decrement => physical_decrease,
+                    };
                 },
                 else => switch (direction) {
                     .increment => "arrowright",
