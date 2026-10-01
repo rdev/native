@@ -15597,6 +15597,11 @@ static void NativeSdkConfigurePanelExtensions(NSSavePanel *panel, NSArray<NSStri
         for (NSString *ext in extensions) {
             UTType *type = [UTType typeWithFilenameExtension:ext];
             if (type) [types addObject:type];
+            // That lookup only considers plain files, so a document that is a
+            // package (a folder shown as one file) needs its declared type too.
+            for (UTType *declared in [UTType typesWithTag:ext tagClass:UTTagClassFilenameExtension conformingToType:nil]) {
+                if (!declared.dynamic && ![types containsObject:declared]) [types addObject:declared];
+            }
         }
         if (types.count > 0) panel.allowedContentTypes = types;
     }
