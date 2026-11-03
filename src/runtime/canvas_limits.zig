@@ -198,6 +198,11 @@ pub const max_registered_canvas_font_bytes: usize = 24 * 1024 * 1024;
 // as the command budget above keeps its smaller split.
 pub const max_canvas_widget_nodes_per_view: usize = if (@import("builtin").target.cpu.arch.isWasm() or @import("builtin").is_test) 1024 else 2048;
 pub const max_canvas_widget_semantics_per_view: usize = max_canvas_widget_nodes_per_view;
+// The node capacity compiled TypeScript policies are built for. Their
+// copied transports (widget motion, markup provenance) carry at most this
+// many nodes even where the native desktop budget above is larger; a tree
+// past it skips the compiled motion and snaps instead.
+pub const max_compiled_policy_widget_nodes_per_view: usize = 1024;
 // Raised from 2048 with the inline-span/markdown work, then from 64 KiB for
 // editable code surfaces: a simple editor must retain a practical source
 // file (roughly 10k ordinary code lines) plus the surrounding view chrome.
@@ -367,7 +372,7 @@ pub const max_canvas_widget_disclosure_flips_per_view: usize = 8;
 // One record per markup-authored widget of the main canvas view, so the
 // cap mirrors the layout node budget -- layout rejects a deeper tree
 // before the provenance pool can saturate, which a lockstep test pins.
-pub const max_canvas_widget_provenance_records_per_view: usize = max_canvas_widget_nodes_per_view;
+pub const max_canvas_widget_provenance_records_per_view: usize = @min(max_canvas_widget_nodes_per_view, max_compiled_policy_widget_nodes_per_view);
 // Source files a provenance table can name: the markup root plus the
 // import-closure cap (`canvas.ui_markup.max_imported_files`).
 pub const max_canvas_widget_provenance_files: usize = 33;

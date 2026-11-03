@@ -18,7 +18,7 @@ comptime {
     for (@typeInfo(canvas.CanvasRenderAnimationLoop).@"enum".fields, loops, 0..) |field, name, i| {
         if (!std.mem.eql(u8, field.name, name) or field.value != i) @compileError("update motion loop wire");
     }
-    if (limits.max_canvas_widget_nodes_per_view > 1024 or limits.max_canvas_widget_disclosure_flips_per_view > 8 or limits.max_canvas_widget_disclosure_moves_per_view > 256 or limits.max_canvas_widget_drag_layout_motions_per_view > 64 or limits.max_canvas_widget_loop_animations_per_view > 64) @compileError("update motion capacity wire");
+    if (limits.max_compiled_policy_widget_nodes_per_view > 1024 or limits.max_canvas_widget_disclosure_flips_per_view > 8 or limits.max_canvas_widget_disclosure_moves_per_view > 256 or limits.max_canvas_widget_drag_layout_motions_per_view > 64 or limits.max_canvas_widget_loop_animations_per_view > 64) @compileError("update motion capacity wire");
 }
 pub const DisclosureAction = enum { none, arm, refresh, retire };
 pub const DisclosurePlan = struct {
@@ -58,6 +58,7 @@ pub fn source(policy: Policy, kind: canvas.WidgetKind, id: u64, pressed: bool, d
     return out[0] == 1;
 }
 pub fn disclosure(allocator: std.mem.Allocator, policy: Policy, previous: canvas.WidgetLayoutTree, next: canvas.WidgetLayoutTree, view: anytype, reduced: bool) !DisclosurePlan {
+    if (@max(previous.nodes.len, next.nodes.len) > limits.max_compiled_policy_widget_nodes_per_view) return .{};
     const input = try allocator.alloc(u8, 24 + (previous.nodes.len + next.nodes.len) * 32);
     defer allocator.free(input);
     @memset(input, 0);
@@ -94,6 +95,7 @@ fn disclosureNode(bytes: []u8, node: canvas.WidgetLayoutNode, pending: bool) voi
     inline for (.{ "x", "y", "width", "height" }, 0..) |name, i| float(bytes[16 + i * 4 ..][0..4], @field(node.frame, name));
 }
 pub fn drag(allocator: std.mem.Allocator, policy: Policy, previous: canvas.WidgetLayoutTree, next: canvas.WidgetLayoutTree, view: anytype, reduced: bool) !DragPlan {
+    if (next.nodes.len > limits.max_compiled_policy_widget_nodes_per_view) return .{};
     const input = try allocator.alloc(u8, 24 + next.nodes.len * 48);
     defer allocator.free(input);
     @memset(input, 0);
