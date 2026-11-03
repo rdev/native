@@ -412,9 +412,10 @@ pub const WidgetAnchorPlacement = enum {
 /// The x position always clamps into the window.
 pub const WidgetAnchorAlignment = enum {
     start,
-    center,
     end,
     stretch,
+    // Appended so the compiled construction wire keeps its ordinals.
+    center,
 };
 
 /// Optional edge for a root-relative modal. `.automatic` keeps the
@@ -1814,11 +1815,13 @@ fn mergeLayoutDefaults(explicit: WidgetLayoutStyle, defaults: WidgetLayoutStyle)
 
 test "Widget keeps the reviewed retained footprint with portable component and appearance policies" {
     // One layout tree holds thousands of Widgets by value. On the 64-bit
-    // targets that run the renderer, 832 bytes is the reviewed footprint:
-    // the 776-byte native widget, two optional 8-byte policy callbacks, and
-    // the optional painter pointer with its eight-float payload. The
-    // callbacks borrow compiled code, with no per-widget allocation.
+    // targets that run the renderer, 864 bytes is the reviewed footprint:
+    // upstream's 792 bytes (the native widget plus two optional 8-byte
+    // policy callbacks that borrow compiled code), the optional painter
+    // pointer and its eight-float payload, the authored paragraph line
+    // advance and letter spacing, the flush group's axis, and the modal
+    // top fraction.
     if (@sizeOf(usize) == 8) {
-        try std.testing.expectEqual(@as(usize, 832), @sizeOf(Widget));
+        try std.testing.expectEqual(@as(usize, 864), @sizeOf(Widget));
     }
 }
