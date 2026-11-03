@@ -4,13 +4,44 @@ This fork carries the Native SDK changes the ProUI port needs. Everything
 generic is split into PR branches cut from upstream `main`; what stays here
 is ProUI-specific policy that should not become an SDK default.
 
+## Releases
+
+ProUI ships against a tagged release of this fork, not a branch. Each
+release is an upstream release tag with the fork's changes applied, named
+`<upstream tag>-proui.<n>`, for example `v0.11.0-proui.1`. Apps depend on
+the tag's source archive by URL and Zig package hash:
+
+```sh
+zig fetch --save=native_sdk https://github.com/rdev/native/archive/refs/tags/v0.11.0-proui.1.tar.gz
+```
+
+ProUI records the release it uses in `packages/native-sdk/native-sdk.json`
+(version, URL, and hash). Its `npm run native-sdk:sync` fetches that release
+into Zig's package cache, and its customer archives write the same URL and
+hash into each example app's `build.zig.zon`.
+
+To cut a release:
+
+1. Rebase the release branch onto the new upstream tag (or add commits for a
+   new `-proui.<n>` on the same base), and run `zig build test-canvas` and
+   the ProUI app builds against it with `NATIVE_SDK_PATH` set to this checkout.
+2. Tag the branch tip `<upstream tag>-proui.<n>` and push the branch and tag
+   to `rdev`.
+3. Run `zig fetch <archive URL>` and put the printed hash, with the version
+   and URL, into ProUI's `native-sdk.json`.
+
+Once upstream merges everything the kit needs, ProUI points
+`native-sdk.json` and the customer docs at the upstream release archive
+instead, and the fork stops cutting releases.
+
 ## Branches
 
 | Branch | What it is |
 | --- | --- |
-| `proui-runtime` | What ProUI builds against today (v0.10.1 base, extraction history). |
-| `proui-runtime-0.10.1` | Backup of `proui-runtime` before the rebase. |
-| `proui-runtime-next` | The whole series rebased onto upstream `main` `96943d4a`, plus the fork-only changes below. This file lives here. |
+| `proui-0.11` | The release branch: upstream `v0.11.0` plus the whole series and the fork-only changes below. `v0.11.0-proui.1` tags its tip. This file lives here. |
+| `proui-runtime-next` | The series on upstream `main` `96943d4a`, before the `v0.11.0` rebase. |
+| `proui-runtime` | The v0.10.1-based branch ProUI built against before releases (extraction history). |
+| `proui-runtime-0.10.1` | Backup of `proui-runtime` before the first rebase. |
 | PR branches | Ten themed PRs cut from upstream `main` `96943d4a`; only GPU scenes stacks on another. Each keeps one commit per change so it reviews commit by commit. |
 
 The PR branches contain no ProUI code: no kit controls, painters, tokens,
@@ -20,6 +51,9 @@ example `SliderRange` instead of slider metadata packed into unrelated
 `Widget` fields).
 
 ## PR branches
+
+Each branch is open upstream as a pull request on `vercel-labs/native`,
+#471 through #480 in the order below.
 
 | # | Branch | Needs | Commits | Contents |
 | --- | --- | --- | --- | --- |
@@ -34,13 +68,18 @@ example `SliderRange` instead of slider metadata packed into unrelated
 | 9 | `perf/macos-scroll-and-compositing` | | 7 | Native scroller and content stay in step; scroll and frame delivery stay live during AppKit tracking; registered image pixels hash once; frame timers follow the display refresh rate (120 Hz); scrolling retargets cached rasters, and cache misses build concurrently; overlapping runs composite through one layer; images and simple shapes composite as GPU quads. Adds `zig build test-macos-scroll-host`, which `zig build test` runs on macOS. |
 | 10 | `feat/macos-gpu-scenes` | 9 | 1 | Retained GPU 3D scenes (meshes, textures, text, shaders) rendered into registered images. |
 
-PR 10 builds on PR 9: open it once 9 merges, or open it earlier with a
-note that only its last commit is new.
+PR 10 builds on PR 9, so only its last commit is new until 9 merges. PR 3
+is the largest; if review stalls on the painter API, its cursor and hover
+commits stand on their own and can be split back out.
 
-Open an issue before 3, 4, 5, 9, and 10, and before the audio part of 7,
-as `CONTRIBUTING.md` asks for larger changes. PR 3 is the largest; if review
-stalls on the painter API, its cursor and hover commits stand on their own
-and can be split back out.
+The PR branches are still based on `96943d4a`. Against `v0.11.0`, branches
+1, 4, and 7 no longer merge cleanly, and the others merge without textual
+conflicts but have not been rebuilt there. Upstream `v0.11.0` also routes
+layout, measurement, rendering, and widget construction through optional
+compiled-TypeScript policies, so changes that add widget fields or enum
+cases must now also widen the policy wire guards. The `v0.11.0` adaptation
+commits on `proui-0.11` show what each needed; fold them into the PR
+branches when rebasing them.
 
 The 31 single-change branches these were assembled from are kept as refs
 under `refs/backup/split/*` (not pushed) in case a PR needs splitting again.
@@ -68,7 +107,7 @@ not competing behavior):
 
 ## Fork-only changes
 
-These stay on `proui-runtime-next` and are not proposed upstream as they
+These stay on the release branch and are not proposed upstream as they
 stand:
 
 - **SF system fonts.** AppKit maps the low font ids to San Francisco (and SF
@@ -103,7 +142,45 @@ nested emission as well as the scrim viewport; the fork still restores only
 the scrim viewport, which leaves culling off for the rest of the outer tree
 after a nested call.
 
+Not yet proposed: `fix(macos): let open panels choose package documents`
+lets a file panel's extension filter accept package documents such as
+`.rtfd`. It is generic and fits PR 7.
+
+## v0.11.0 adaptation
+
+Three commits on `proui-0.11` adapt the series to `v0.11.0`. Zig apps leave
+upstream's compiled-TypeScript policies unset, so the fork's Zig paths stay
+authoritative; these keep both sides compiling and the policy wires stable:
+
+- The anchor alignment's `center` case is appended after upstream's cases so
+  compiled construction keeps its ordinals, and the construction wire guards
+  name the fork's placements and alignments.
+- The compiled render planner's rectangular clips lift into `RenderClip`.
+- Painters run before upstream's render coordination policy, and nested
+  emission saves and restores the text run policy.
+- Tooltips lay out as stacks in the layout coordination policy, so composed
+  tooltip content measures.
+- Canvas view labels go through upstream's shell admission policy.
+- The AppKit host defers a scroll driver's drift report to the next main
+  queue turn, so it never re-enters a scroll driver update.
+- The fork's desktop budgets allow more widgets per view than the compiled
+  policy transports carry. Those transports keep their 1024-node wire
+  (`max_compiled_policy_widget_nodes_per_view`), provenance records are
+  capped to it, and widget motion skips views larger than it.
+- The retained `Widget` footprint is 864 bytes.
+
 ## Verification
+
+On `proui-0.11` (`v0.11.0` base), macOS, Zig 0.16.0:
+
+- `zig build test-canvas` passes (1149 tests).
+- All eight ProUI apps (catalog, minimal, and the six example apps) build
+  in ReleaseFast against it.
+- The desktop runtime and shell test suites crash with a stack overflow in
+  `validateShellViewCreatePlan`. Not yet investigated; the fork's raised
+  test-build budgets are the likely cause.
+
+On the PR branches (`96943d4a` base):
 
 - Upstream `main` `96943d4a` passes `zig build test` on this machine (macOS,
   Zig 0.16.0), which is the baseline every branch is compared against.
@@ -116,19 +193,7 @@ after a nested call.
   rounded image and accordion clips, animation transform order, the
   painter's nested-emission scrim, the menu safe triangle, and composed
   tooltips.
-- Not yet run: `scripts/gate.sh fast` per branch, and ProUI against
-  `proui-runtime-next`.
-
-## Before opening the PRs
-
-- Sign the commits. `CONTRIBUTING.md` requires cryptographic signatures and
-  none of these are signed; once a key is configured, re-sign a branch with
-  `git rebase --exec 'git commit --amend --no-edit -S' upstream/main` (use
-  the base branch for stacked ones).
-- Five commits carry a `Co-Authored-By: Claude Opus 5` trailer from the
-  fork's history and the rest carry none; make that consistent.
-- Run `scripts/gate.sh fast` on each branch.
-- Leave `CHANGELOG.md` alone; the release agent writes it.
+- Not yet run: `scripts/gate.sh fast` per branch.
 
 ## Keeping this current
 
