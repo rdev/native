@@ -182,7 +182,7 @@ pub fn RuntimeCanvasFrames(comptime Runtime: type) type {
         /// start of interaction-driven motion.
         pub fn canvasAnimationTimestampNs(self: *const Runtime, window_id: platform.WindowId, label: []const u8) anyerror!u64 {
             try validateRuntimeViewParent(self, window_id);
-            try validateViewLabel(label);
+            try @import("shell_admission_policy.zig").label(self.shell_admission_policy, 0, label);
             const index = runtimeFindViewIndex(self, window_id, label) orelse return error.ViewNotFound;
             if (self.views[index].kind != .gpu_surface) return error.InvalidViewOptions;
             const view = &self.views[index];
@@ -243,7 +243,7 @@ pub fn RuntimeCanvasFrames(comptime Runtime: type) type {
         /// remains live across the rebuild that dispatched the model change.
         pub fn setCanvasModelRenderAnimations(self: *Runtime, window_id: platform.WindowId, label: []const u8, animations: []const canvas.CanvasRenderAnimation) anyerror!platform.ViewInfo {
             try validateRuntimeViewParent(self, window_id);
-            try validateViewLabel(label);
+            try @import("shell_admission_policy.zig").label(self.shell_admission_policy, 0, label);
             const index = runtimeFindViewIndex(self, window_id, label) orelse return error.ViewNotFound;
             if (self.views[index].kind != .gpu_surface) return error.InvalidViewOptions;
             try validateCanvasRenderAnimations(animations);

@@ -8484,7 +8484,16 @@ static double NativeSdkClampedPinchMagnification(double magnification) {
             const BOOL drifted_y = desired.scrolls_y && fabs(origin.y - desired.offset_y) > 0.5;
             if (drifted_x || drifted_y) {
                 if (NativeSdkScrollTraceEnabled()) fprintf(stderr, "[scroll] %llu drift driver=%llu native=%.1f engine=%.1f\n", NativeSdkTimestampNanoseconds() / 1000000ull, driver.driverId, origin.y, desired.offset_y);
-                [self queueScrollDriverEventWithId:driver.driverId offsetX:origin.x offsetY:origin.y];
+                // Report after the push settles, like resize reports: the
+                // runtime must not re-enter while drivers are reconciled.
+                __weak NativeSdkMetalSurfaceView *weakSelf = self;
+                dispatch_async(dispatch_get_main_queue(), ^{
+                    NativeSdkMetalSurfaceView *strongSelf = weakSelf;
+                    if (!strongSelf || driver.superview != strongSelf) return;
+                    [strongSelf queueScrollDriverEventWithId:driver.driverId
+                                                    offsetX:driver.contentView.bounds.origin.x
+                                                    offsetY:driver.contentView.bounds.origin.y];
+                });
             }
         }
         [ordered addObject:driver];
